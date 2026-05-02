@@ -19,6 +19,7 @@ export function RecipesPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
 
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [profitRules, setProfitRules] = useState<ProfitRule[]>([]);
@@ -73,9 +74,15 @@ export function RecipesPage() {
     }
   };
 
-  const handleEdit = async (id: string, payload: UpdateRecipePayload) => {
-    const updated = await recipesService.update(id, payload);
-    setRecipes((prev) => prev.map((r) => (r._id === id ? updated : r)));
+  const handleEditSubmit = async (payload: UpdateRecipePayload) => {
+    if (!editingRecipe) return;
+    const updated = await recipesService.update(editingRecipe._id, payload);
+    setRecipes((prev) => prev.map((r) => (r._id === editingRecipe._id ? updated : r)));
+    setEditingRecipe(null);
+    if (payload.isSubRecipe !== undefined || editingRecipe.isSubRecipe) {
+      const subRes = await recipesService.list({ isSubRecipe: true, limit: 200 });
+      setSubRecipes(subRes.data);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -154,7 +161,7 @@ export function RecipesPage() {
                 key={recipe._id}
                 recipe={recipe}
                 profitRules={profitRules}
-                onEdit={handleEdit}
+                onEditRequest={setEditingRecipe}
                 onDelete={handleDelete}
                 onUpdatePrice={handleUpdatePrice}
               />
@@ -196,6 +203,16 @@ export function RecipesPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onSubmit={handleCreate}
+        ingredients={ingredients}
+        profitRules={profitRules}
+        subRecipes={subRecipes}
+      />
+
+      <RecipeFormModal
+        isOpen={!!editingRecipe}
+        onClose={() => setEditingRecipe(null)}
+        onSubmit={handleEditSubmit}
+        initialData={editingRecipe}
         ingredients={ingredients}
         profitRules={profitRules}
         subRecipes={subRecipes}

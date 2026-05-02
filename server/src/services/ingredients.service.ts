@@ -15,7 +15,11 @@ export interface RegisterPurchaseInput {
 }
 
 export interface UpdateIngredientInput {
-  name: string;
+  name?: string;
+  unit?: string;
+  costPerKg?: number;
+  costPer100g?: number;
+  costPerUnit?: number;
 }
 
 export async function findAllIngredients(
@@ -144,25 +148,43 @@ export async function updateIngredient(
   dto: UpdateIngredientInput,
 ): Promise<IngredientDocument> {
   const Ingredient = getIngredientModel();
-  const existing = await Ingredient.findOne({
-    name: { $regex: `^${dto.name}$`, $options: 'i' },
-    _id: { $ne: id },
-  }).exec();
-  if (existing) {
-    throw {
-      status: 409,
-      message: `Ya existe un ingrediente con el nombre "${dto.name}"`,
-    };
+  const Recipe = getRecipeModel();
+  if (dto.name) {
+    const existing = await Ingredient.findOne({
+      name: { $regex: `^${dto.name}$`, $options: 'i' },
+      _id: { $ne: id },
+    }).exec();
+    if (existing) {
+      throw {
+        status: 409,
+        message: `Ya existe un ingrediente con el nombre "${dto.name}"`,
+      };
+    }
   }
+
+  const updates: Record<string, any> = {};
+  if (dto.name) updates.name = dto.name;
+  if (dto.unit) updates.unit = dto.unit;
+  if (dto.costPerKg !== undefined) updates.costPerKg = dto.costPerKg;
+  if (dto.costPer100g !== undefined) updates.costPer100g = dto.costPer100g;
+  if (dto.costPerUnit !== undefined) updates.costPerUnit = dto.costPerUnit;
 
   const ingredient = (await Ingredient.findByIdAndUpdate(
     id,
-    { name: dto.name },
+    { $set: updates },
     { new: true },
   ).exec()) as IngredientDocument | null;
   if (!ingredient) {
     throw { status: 404, message: 'Ingrediente no encontrado' };
   }
+
+  if (dto.costPerKg !== undefined || dto.costPerUnit !== undefined) {
+    await Recipe.updateMany(
+      { 'ingredients.ingredientId': ingredient._id, customSellingPrice: { $ne: null } },
+      { $set: { customSellingPrice: null } },
+    ).exec();
+  }
+
   return ingredient;
 }
 

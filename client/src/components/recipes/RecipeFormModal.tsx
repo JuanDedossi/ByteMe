@@ -25,11 +25,12 @@ interface RecipeFormModalProps {
   ingredients: Ingredient[];
   profitRules: ProfitRule[];
   subRecipes?: Recipe[];
+  initialData?: Recipe | null;
 }
 
 let rowCounter = 0;
 
-export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profitRules, subRecipes = [] }: RecipeFormModalProps) {
+export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profitRules, subRecipes = [], initialData }: RecipeFormModalProps) {
   const [name, setName] = useState('');
   const [rows, setRows] = useState<IngredientRow[]>([{ id: ++rowCounter, ingredientId: '', quantity: '' }]);
   const [subRecipeRows, setSubRecipeRows] = useState<SubRecipeRow[]>([]);
@@ -42,20 +43,43 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!isOpen) {
-      setName('');
-      setRows([{ id: ++rowCounter, ingredientId: '', quantity: '' }]);
-      setSubRecipeRows([]);
-      setProfitRuleId(profitRules[0]?._id ?? '');
-      setSellUnit('unidad');
-      setYieldGrams('');
-      setYieldUnits('1');
-      setIsSubRecipe(false);
+    if (isOpen) {
+      if (initialData) {
+        setName(initialData.name);
+        setProfitRuleId(initialData.profitRuleId);
+        setSellUnit((initialData.sellUnit as 'unidad' | 'kg') || 'unidad');
+        setYieldGrams(initialData.yieldGrams ? initialData.yieldGrams.toString() : '');
+        setYieldUnits(initialData.yieldUnits ? initialData.yieldUnits.toString() : '1');
+        setIsSubRecipe(!!initialData.isSubRecipe);
+        
+        const rRows: IngredientRow[] = [];
+        const srRows: SubRecipeRow[] = [];
+        
+        initialData.ingredients.forEach(i => {
+          if (i.isSubRecipe) {
+            srRows.push({ id: ++rowCounter, recipeId: i.ingredientId, quantity: i.quantity.toString() });
+          } else {
+            rRows.push({ id: ++rowCounter, ingredientId: i.ingredientId, quantity: i.quantity.toString() });
+          }
+        });
+        
+        if (rRows.length === 0) rRows.push({ id: ++rowCounter, ingredientId: '', quantity: '' });
+        
+        setRows(rRows);
+        setSubRecipeRows(srRows);
+      } else {
+        setName('');
+        setRows([{ id: ++rowCounter, ingredientId: '', quantity: '' }]);
+        setSubRecipeRows([]);
+        setProfitRuleId(profitRules[0]?._id ?? '');
+        setSellUnit('unidad');
+        setYieldGrams('');
+        setYieldUnits('1');
+        setIsSubRecipe(false);
+      }
       setError('');
-    } else {
-      setProfitRuleId(profitRules[0]?._id ?? '');
     }
-  }, [isOpen, profitRules]);
+  }, [isOpen, initialData, profitRules]);
 
   const fmt = (v: number) =>
     `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -172,7 +196,7 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Nueva Receta">
+    <Modal isOpen={isOpen} onClose={onClose} title={initialData ? "Editar Receta" : "Nueva Receta"}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
         {/* Name */}
         <div>
@@ -456,7 +480,7 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
         <div style={{ display: 'flex', gap: 'var(--space-md)', paddingTop: 'var(--space-xs)' }}>
           <button onClick={onClose} disabled={loading} style={cancelBtnStyle}>Cancelar</button>
           <button onClick={handleSubmit} disabled={!isValid || loading} style={submitBtnStyle(!isValid || loading)}>
-            {loading ? 'Creando...' : 'Crear Receta'}
+            {loading ? 'Guardando...' : initialData ? 'Guardar Cambios' : 'Crear Receta'}
           </button>
         </div>
       </div>

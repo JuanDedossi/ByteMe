@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { MdAddShoppingCart } from 'react-icons/md';
 import { IngredientCard } from '../components/ingredients/IngredientCard';
 import { PurchaseModal } from '../components/ingredients/PurchaseModal';
+import { IngredientFormModal } from '../components/ingredients/IngredientFormModal';
 import { SearchBar } from '../components/common/SearchBar';
 import { Pagination } from '../components/common/Pagination';
 import { ingredientsService } from '../services/ingredients.service';
@@ -15,6 +16,7 @@ export function IngredientsPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
 
   const limit = 10;
@@ -50,11 +52,12 @@ export function IngredientsPage() {
     setPage(1);
   };
 
-  const handleEdit = async (id: string, name: string) => {
-    await ingredientsService.update(id, { name });
-    setIngredients((prev) =>
-      prev.map((ing) => (ing._id === id ? { ...ing, name } : ing)),
-    );
+  const handleEditSubmit = async (payload: any) => {
+    if (!editingIngredient) return;
+    await ingredientsService.update(editingIngredient._id, payload);
+    setEditingIngredient(null);
+    fetchIngredients();
+    fetchAllIngredients();
   };
 
   const handleDelete = async (id: string) => {
@@ -138,7 +141,7 @@ export function IngredientsPage() {
               <IngredientCard
                 key={ingredient._id}
                 ingredient={ingredient}
-                onEdit={handleEdit}
+                onEditRequest={setEditingIngredient}
                 onDelete={handleDelete}
               />
             ))}
@@ -180,6 +183,13 @@ export function IngredientsPage() {
         onClose={() => setModalOpen(false)}
         onSubmit={handlePurchase}
         existingIngredients={allIngredients}
+      />
+
+      <IngredientFormModal
+        isOpen={!!editingIngredient}
+        onClose={() => setEditingIngredient(null)}
+        initialData={editingIngredient}
+        onSubmit={handleEditSubmit}
       />
     </div>
   );

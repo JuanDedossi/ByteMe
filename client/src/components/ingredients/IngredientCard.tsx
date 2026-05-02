@@ -1,40 +1,15 @@
-import { useState } from 'react';
-import { MdEdit, MdDelete, MdCheck, MdClose } from 'react-icons/md';
+import { MdEdit, MdDelete } from 'react-icons/md';
 import type { Ingredient } from '../../types/ingredient.types';
 
 interface IngredientCardProps {
   ingredient: Ingredient;
-  onEdit: (id: string, name: string) => Promise<void>;
+  onEditRequest: (ingredient: Ingredient) => void;
   onDelete: (id: string) => void;
 }
 
-export function IngredientCard({ ingredient, onEdit, onDelete }: IngredientCardProps) {
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(ingredient.name);
-  const [loading, setLoading] = useState(false);
-
+export function IngredientCard({ ingredient, onEditRequest, onDelete }: IngredientCardProps) {
   const formatCurrency = (value: number) =>
     `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  const handleSave = async () => {
-    if (!editName.trim() || editName.trim() === ingredient.name) {
-      setEditing(false);
-      setEditName(ingredient.name);
-      return;
-    }
-    setLoading(true);
-    try {
-      await onEdit(ingredient._id, editName.trim());
-      setEditing(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setEditing(false);
-    setEditName(ingredient.name);
-  };
 
   return (
     <div
@@ -50,58 +25,24 @@ export function IngredientCard({ ingredient, onEdit, onDelete }: IngredientCardP
     >
       {/* Name row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-sm)' }}>
-        {editing ? (
-          <input
-            autoFocus
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); }}
-            style={{
-              flex: 1,
-              fontFamily: 'var(--font-body)',
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: 'var(--color-text-primary)',
-              border: 'none',
-              borderBottom: '2px solid var(--color-primary)',
-              outline: 'none',
-              background: 'transparent',
-              padding: '2px 0',
-            }}
-          />
-        ) : (
-          <span
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: 'var(--color-text-primary)',
-            }}
-          >
-            {ingredient.name}
-          </span>
-        )}
+        <span
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '1rem',
+            fontWeight: 600,
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          {ingredient.name}
+        </span>
 
         <div style={{ display: 'flex', gap: 'var(--space-xs)', flexShrink: 0 }}>
-          {editing ? (
-            <>
-              <button onClick={handleSave} disabled={loading} style={iconBtnStyle('var(--color-success)')}>
-                <MdCheck size={18} />
-              </button>
-              <button onClick={handleCancel} disabled={loading} style={iconBtnStyle('var(--color-text-secondary)')}>
-                <MdClose size={18} />
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => setEditing(true)} style={iconBtnStyle('var(--color-secondary)')}>
-                <MdEdit size={18} />
-              </button>
-              <button onClick={() => onDelete(ingredient._id)} style={iconBtnStyle('var(--color-error)')}>
-                <MdDelete size={18} />
-              </button>
-            </>
-          )}
+          <button onClick={() => onEditRequest(ingredient)} style={iconBtnStyle('var(--color-secondary)')}>
+            <MdEdit size={18} />
+          </button>
+          <button onClick={() => onDelete(ingredient._id)} style={iconBtnStyle('var(--color-error)')}>
+            <MdDelete size={18} />
+          </button>
         </div>
       </div>
 
