@@ -19,5 +19,9 @@ export interface RegisterPurchasePayload {
 }
 
 export interface UpdateIngredientPayload {
-  name: string;
+  name?: string;
+  unit?: string;
+  costPerKg?: number;
+  costPer100g?: number;
+  costPerUnit?: number;
 }
