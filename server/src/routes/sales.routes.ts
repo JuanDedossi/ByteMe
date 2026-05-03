@@ -8,8 +8,11 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
     const limit = Math.min(100, parseInt(req.query.limit as string, 10) || 20);
 
-    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
-    const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : undefined;
+    // Se agrega T00:00:00 para que JS lo parsee en zona horaria local y no UTC
+    const dateFromStr = req.query.dateFrom as string;
+    const dateToStr = req.query.dateTo as string;
+    const dateFrom = dateFromStr ? new Date(`${dateFromStr}T00:00:00`) : undefined;
+    const dateTo = dateToStr ? new Date(`${dateToStr}T00:00:00`) : undefined;
 
     // Si dateTo viene sin hora, extenderlo al final del día
     if (dateTo && !isNaN(dateTo.getTime())) {
