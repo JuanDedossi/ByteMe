@@ -49,7 +49,13 @@ export function TrayStockCard({
     >
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-xs)',
+          }}
+        >
           <p
             style={{
               fontFamily: 'var(--font-body)',
@@ -64,19 +70,6 @@ export function TrayStockCard({
           >
             {tray.name}
           </p>
-          <span
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.65rem',
-              color: 'var(--color-text-secondary)',
-              background: 'rgba(218, 193, 184, 0.2)',
-              padding: '1px 6px',
-              borderRadius: 'var(--radius-sm)',
-              flexShrink: 0,
-            }}
-          >
-            Bandeja
-          </span>
         </div>
         <p
           style={{
