@@ -17,7 +17,10 @@ function getPresetDates(preset: Preset): { dateFrom?: string; dateTo?: string } 
     return { dateFrom: today, dateTo: today };
   }
   if (preset === 'week') {
-    const from = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const day = now.getDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    const from = new Date(now);
+    from.setDate(now.getDate() - diffToMonday);
     return { dateFrom: toDateStr(from), dateTo: toDateStr(now) };
   }
   if (preset === 'month') {

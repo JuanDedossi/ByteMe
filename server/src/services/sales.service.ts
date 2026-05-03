@@ -38,7 +38,12 @@ export async function getSaleStats(): Promise<{
 }> {
   const Sale = getSaleModel();
   const now = new Date();
-  const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // La semana empieza el lunes (0 = domingo, 1 = lunes, etc.)
+  const day = now.getDay();
+  const diffToMonday = day === 0 ? 6 : day - 1;
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(now.getDate() - diffToMonday);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const [weeklyResult, monthlyResult] = await Promise.all([
