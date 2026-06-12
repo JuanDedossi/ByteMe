@@ -235,7 +235,7 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
                     {/* Item info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
-                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600, margin: 0, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600, margin: 0, color: 'var(--color-text-primary)' }}>
                           {sellable.name}
                         </p>
                         {sellable.type === 'tray' && (

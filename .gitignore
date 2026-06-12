@@ -7,6 +7,10 @@ build/
 
 # Environment
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 !.env.example
 
 # OS
@@ -20,6 +24,7 @@ pnpm-debug.log*
 
 # IDE
 .idea/
+.vscode/
 *.swp
 *.swo
 
@@ -42,6 +47,7 @@ temp/
 
 # AI Agent config (local-only)
 .agent/
+.atl/
 .clinerules
 agent.md
 context-management-plan.md
@@ -50,3 +56,6 @@ memory-bank/
 .gemini/
 .cursor/
 AGENTS.md
+
+# SDD artifacts (local-only)
+openspec/
