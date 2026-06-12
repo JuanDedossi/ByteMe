@@ -65,9 +65,6 @@ export function RecipeStockCard({
             fontWeight: 600,
             color: 'var(--color-text-primary)',
             margin: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
           }}
         >
           {recipe.name}
