@@ -15,7 +15,7 @@ export function getTenantDb(): string {
   const ctx = storage.getStore();
   if (!ctx) {
     // Dev mode (no auth configured) or missing context: use default DB
-    return process.env.DB_NAME || 'mordisquitos';
+    return process.env.DB_NAME || 'byteme';
   }
   return ctx.dbName;
 }

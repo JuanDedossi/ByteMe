@@ -23,7 +23,7 @@ export async function connectDB(): Promise<typeof mongoose> {
 
   if (!cached.promise) {
     const uri =
-      process.env.MONGODB_URI || "mongodb://localhost:27017/mordisquitos";
+      process.env.MONGODB_URI || "mongodb://localhost:27017/byteme";
     cached.promise = mongoose.connect(uri);
   }
 
