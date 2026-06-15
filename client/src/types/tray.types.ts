@@ -15,7 +15,7 @@ export interface Tray {
   cost: number;
   profitRuleId: string;
   profitRuleName: string;
-  marginPercentage: number;
+  markupPercentage: number;
   sellingPrice: number;
   customSellingPrice: number | null;
   stock: number;

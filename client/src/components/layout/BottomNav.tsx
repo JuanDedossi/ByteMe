@@ -6,7 +6,7 @@ const USER_LABEL_KEY = 'mordisquitos-user';
 const navItems = [
   { path: '/ingredientes', icon: MdKitchen, label: 'Ingredientes' },
   { path: '/recetas', icon: MdMenuBook, label: 'Recetas' },
-  { path: '/margenes', icon: MdTrendingUp, label: 'Márgenes' },
+  { path: '/markups', icon: MdTrendingUp, label: 'Markups' },
   { path: '/stock', icon: MdInventory2, label: 'Stock' },
   { path: '/bandejas', icon: MdGridView, label: 'Bandejas' },
   { path: '/historial', icon: MdReceipt, label: 'Historial' },

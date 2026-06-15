@@ -119,9 +119,9 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
   if (selectedRule) {
     if (sellUnit === 'kg' && yieldG > 0) {
       const costPerKg = (totalCost / yieldG) * 1000;
-      sellingPrice = costPerKg * (1 + selectedRule.marginPercentage / 100);
+      sellingPrice = costPerKg * (1 + selectedRule.markupPercentage / 100);
     } else {
-      sellingPrice = (totalCost * (1 + selectedRule.marginPercentage / 100)) / yieldU;
+      sellingPrice = (totalCost * (1 + selectedRule.markupPercentage / 100)) / yieldU;
     }
   }
 
@@ -363,15 +363,15 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
 
         {/* Profit rule */}
         <div>
-          <label style={labelStyle}>Margen de ganancia</label>
+          <label style={labelStyle}>Markup de ganancia</label>
           <select
             value={profitRuleId}
             onChange={(e) => setProfitRuleId(e.target.value)}
             style={inputStyle}
           >
-            <option value="">Seleccioná un margen...</option>
+            <option value="">Seleccioná un markup...</option>
             {profitRules.map((r) => (
-              <option key={r._id} value={r._id}>{r.name} — {r.marginPercentage}%</option>
+              <option key={r._id} value={r._id}>{r.name} — {r.markupPercentage}%</option>
             ))}
           </select>
         </div>
@@ -450,7 +450,7 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
             </span>
             {selectedRule && (
               <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                Margen aplicado: <strong>{selectedRule.name} ({selectedRule.marginPercentage}%)</strong>
+                Markup aplicado: <strong>{selectedRule.name} ({selectedRule.markupPercentage}%)</strong>
               </span>
             )}
             {sellUnit === 'kg' ? (

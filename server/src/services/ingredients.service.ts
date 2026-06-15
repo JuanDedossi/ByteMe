@@ -1,9 +1,11 @@
+import { Types } from 'mongoose';
 import {
   getIngredientModel,
   IngredientDocument,
 } from '../models/ingredient.model';
 import { getPurchaseHistoryModel } from '../models/purchase-history.model';
 import { getRecipeModel } from '../models/recipe.model';
+import { roundCurrency } from '../utils/currency';
 
 export interface RegisterPurchaseInput {
   ingredientName: string;
@@ -18,8 +20,49 @@ export interface UpdateIngredientInput {
   name?: string;
   unit?: string;
   costPerKg?: number;
-  costPer100g?: number;
   costPerUnit?: number;
+}
+
+async function resetCustomSellingPriceCascade(seedId: string): Promise<void> {
+  const Recipe = getRecipeModel();
+  const visited = new Set<string>();
+  let frontier = [seedId];
+
+  while (frontier.length > 0) {
+    // DESTRUCTIVE: see design.md Phase 4
+    const docs = await Recipe.find({
+      $or: [
+        { 'ingredients.ingredientId': { $in: frontier.map((id) => new Types.ObjectId(id)) } },
+        { 'ingredients.recipeId': { $in: frontier.map((id) => new Types.ObjectId(id)) } },
+      ],
+    }).lean();
+
+    const next = docs
+      .map((d: any) => d._id.toString())
+      .filter((id) => !visited.has(id));
+    if (next.length === 0) break;
+    next.forEach((id) => visited.add(id));
+    frontier = next;
+  }
+
+  if (visited.size > 0) {
+    const result = await Recipe.updateMany(
+      {
+        _id: { $in: [...visited].map((id) => new Types.ObjectId(id)) },
+        customSellingPrice: { $ne: null },
+      },
+      { $set: { customSellingPrice: null } },
+    );
+    if (result.modifiedCount && result.modifiedCount > 0) {
+      console.log(
+        `Cascade reset customSellingPrice for recipes: ${[...visited].join(', ')}`,
+      );
+    }
+  }
+}
+
+function deriveCostPer100g(unit: string, costPerKg: number): number {
+  return unit === 'kg' ? roundCurrency(costPerKg / 10) : 0;
 }
 
 export async function findAllIngredients(
@@ -64,16 +107,22 @@ export async function findIngredientsByIds(
 export async function registerPurchase(
   dto: RegisterPurchaseInput,
 ): Promise<IngredientDocument> {
+  if (dto.quantityPurchased <= 0) {
+    throw { status: 400, message: 'La cantidad comprada debe ser mayor a 0' };
+  }
+  if (dto.pricePaid < 0) {
+    throw { status: 400, message: 'El precio pagado no puede ser negativo' };
+  }
+
   const Ingredient = getIngredientModel();
   const PurchaseHistory = getPurchaseHistoryModel();
-  const Recipe = getRecipeModel();
   const unit = dto.unit ?? 'kg';
   const isWeight = unit === 'kg';
 
   const costPerKg = isWeight
     ? (dto.pricePaid / dto.quantityPurchased) * 1000
     : 0;
-  const costPer100g = isWeight ? costPerKg / 10 : 0;
+  const costPer100g = deriveCostPer100g(unit, costPerKg);
   const costPerUnit = !isWeight
     ? dto.pricePaid / dto.quantityPurchased
     : 0;
@@ -104,7 +153,7 @@ export async function registerPurchase(
 
     const realIsWeight = existing.unit === 'kg';
     const realCostPerKg = realIsWeight ? (dto.pricePaid / dto.quantityPurchased) * 1000 : 0;
-    const realCostPer100g = realIsWeight ? realCostPerKg / 10 : 0;
+    const realCostPer100g = deriveCostPer100g(existing.unit, realCostPerKg);
     const realCostPerUnit = !realIsWeight ? dto.pricePaid / dto.quantityPurchased : 0;
 
     const updateFields: Record<string, number> = realIsWeight
@@ -120,11 +169,7 @@ export async function registerPurchase(
       throw { status: 404, message: 'Ingrediente no encontrado' };
     }
 
-    // Resetear customSellingPrice en recetas que usen este ingrediente
-    await Recipe.updateMany(
-      { 'ingredients.ingredientId': ingredient._id, customSellingPrice: { $ne: null } },
-      { $set: { customSellingPrice: null } },
-    ).exec();
+    await resetCustomSellingPriceCascade(ingredient._id.toString());
   }
 
   const finalUnit = ingredient.unit;
@@ -147,14 +192,26 @@ export async function updateIngredient(
   id: string,
   dto: UpdateIngredientInput,
 ): Promise<IngredientDocument> {
+  if (dto.costPerKg !== undefined && dto.costPerKg < 0) {
+    throw { status: 400, message: 'El costo por kg no puede ser negativo' };
+  }
+  if (dto.costPerUnit !== undefined && dto.costPerUnit < 0) {
+    throw { status: 400, message: 'El costo por unidad no puede ser negativo' };
+  }
+
   const Ingredient = getIngredientModel();
-  const Recipe = getRecipeModel();
-  if (dto.name) {
-    const existing = await Ingredient.findOne({
+
+  const existing = await Ingredient.findById(id).exec() as IngredientDocument | null;
+  if (!existing) {
+    throw { status: 404, message: 'Ingrediente no encontrado' };
+  }
+
+  if (dto.name && dto.name !== existing.name) {
+    const nameConflict = await Ingredient.findOne({
       name: { $regex: `^${dto.name}$`, $options: 'i' },
       _id: { $ne: id },
     }).exec();
-    if (existing) {
+    if (nameConflict) {
       throw {
         status: 409,
         message: `Ya existe un ingrediente con el nombre "${dto.name}"`,
@@ -162,12 +219,16 @@ export async function updateIngredient(
     }
   }
 
-  const updates: Record<string, any> = {};
-  if (dto.name) updates.name = dto.name;
-  if (dto.unit) updates.unit = dto.unit;
+  const updates: Record<string, unknown> = {};
+  if (dto.name !== undefined) updates.name = dto.name;
+  if (dto.unit !== undefined) updates.unit = dto.unit;
   if (dto.costPerKg !== undefined) updates.costPerKg = dto.costPerKg;
-  if (dto.costPer100g !== undefined) updates.costPer100g = dto.costPer100g;
   if (dto.costPerUnit !== undefined) updates.costPerUnit = dto.costPerUnit;
+
+  const finalUnit = (updates.unit as string | undefined) ?? existing.unit;
+  const finalCostPerKg =
+    (updates.costPerKg as number | undefined) ?? existing.costPerKg;
+  updates.costPer100g = deriveCostPer100g(finalUnit, finalCostPerKg);
 
   const ingredient = (await Ingredient.findByIdAndUpdate(
     id,
@@ -179,10 +240,7 @@ export async function updateIngredient(
   }
 
   if (dto.costPerKg !== undefined || dto.costPerUnit !== undefined) {
-    await Recipe.updateMany(
-      { 'ingredients.ingredientId': ingredient._id, customSellingPrice: { $ne: null } },
-      { $set: { customSellingPrice: null } },
-    ).exec();
+    await resetCustomSellingPriceCascade(ingredient._id.toString());
   }
 
   return ingredient;
@@ -198,5 +256,10 @@ export async function deleteIngredient(id: string): Promise<void> {
 }
 
 export async function checkIngredientInUse(_id: string): Promise<boolean> {
-  return false;
+  const Recipe = getRecipeModel();
+  const count = await Recipe.countDocuments({
+    'ingredients.ingredientId': new Types.ObjectId(_id),
+    isActive: true,
+  }).exec();
+  return count > 0;
 }

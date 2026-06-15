@@ -9,6 +9,13 @@ import {
   toggleRecipeActive,
   deleteRecipe,
 } from '../services/recipes.service';
+import { validate } from '../middleware/validate';
+import {
+  CreateRecipeSchema,
+  UpdateRecipeSchema,
+  UpdateStockSchema,
+  UpdateRecipePriceSchema,
+} from '../validation/schemas';
 
 const router = Router();
 
@@ -49,7 +56,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', validate(CreateRecipeSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await createRecipe(req.body);
     res.json({ success: true, data, message: 'Receta creada exitosamente' });
@@ -58,7 +65,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/:id', validate(UpdateRecipeSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const data = await updateRecipe(id, req.body);
@@ -72,7 +79,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
   }
 });
 
-router.patch('/:id/stock', async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/:id/stock', validate(UpdateStockSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const data = await updateRecipeStock(id, req.body);
@@ -82,7 +89,7 @@ router.patch('/:id/stock', async (req: Request, res: Response, next: NextFunctio
   }
 });
 
-router.patch('/:id/price', async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/:id/price', validate(UpdateRecipePriceSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const data = await updateRecipePrice(id, req.body);

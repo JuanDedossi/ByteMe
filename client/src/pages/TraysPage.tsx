@@ -19,6 +19,7 @@ export function TraysPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingTray, setEditingTray] = useState<Tray | null>(null);
 
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [profitRules, setProfitRules] = useState<ProfitRule[]>([]);
@@ -64,9 +65,11 @@ export function TraysPage() {
     await fetchTrays();
   };
 
-  const handleEdit = async (id: string, payload: UpdateTrayPayload) => {
-    const updated = await traysService.update(id, payload);
-    setTrays((prev) => prev.map((t) => (t._id === id ? updated : t)));
+  const handleEditSubmit = async (payload: UpdateTrayPayload) => {
+    if (!editingTray) return;
+    const updated = await traysService.update(editingTray._id, payload);
+    setTrays((prev) => prev.map((t) => (t._id === editingTray._id ? updated : t)));
+    setEditingTray(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -142,8 +145,7 @@ export function TraysPage() {
               <TrayCard
                 key={tray._id}
                 tray={tray}
-                profitRules={profitRules}
-                onEdit={handleEdit}
+                onEditRequest={setEditingTray}
                 onDelete={handleDelete}
                 onUpdatePrice={handleUpdatePrice}
               />
@@ -185,6 +187,15 @@ export function TraysPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onSubmit={handleCreate}
+        recipes={recipes}
+        profitRules={profitRules}
+      />
+
+      <TrayFormModal
+        isOpen={!!editingTray}
+        onClose={() => setEditingTray(null)}
+        onSubmit={handleEditSubmit}
+        initialData={editingTray}
         recipes={recipes}
         profitRules={profitRules}
       />

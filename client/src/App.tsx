@@ -33,7 +33,7 @@ function App() {
         <Route path="/" element={<Navigate to="/ingredientes" replace />} />
         <Route path="/ingredientes" element={<IngredientsPage />} />
         <Route path="/recetas" element={<RecipesPage />} />
-        <Route path="/margenes" element={<ProfitRulesPage />} />
+        <Route path="/markups" element={<ProfitRulesPage />} />
         <Route path="/stock" element={<StockSalesPage />} />
         <Route path="/bandejas" element={<TraysPage />} />
         <Route path="/historial" element={<SalesHistoryPage />} />

@@ -108,7 +108,7 @@ export function RecipeCard({
                 margin: 'var(--space-xs) 0 0',
               }}
             >
-              {recipe.profitRuleName} · {recipe.marginPercentage}% margen
+              {recipe.profitRuleName} · {recipe.markupPercentage}% markup
             </p>
             {recipe.isSubRecipe && (
               <span
@@ -392,7 +392,7 @@ export function RecipeCard({
                 color: 'var(--color-text-secondary)',
               }}
             >
-              Margen ({recipe.marginPercentage}%):{' '}
+              Markup ({recipe.markupPercentage}%):{' '}
               <strong>
                 {fmt(
                   (recipe.sellUnit === 'kg'

@@ -4,7 +4,7 @@ import { Modal } from '../common/Modal';
 import { SearchableSelect } from '../common/SearchableSelect';
 import type { ProfitRule } from '../../types/profit-rule.types';
 import type { Recipe } from '../../types/recipe.types';
-import type { CreateTrayPayload } from '../../types/tray.types';
+import type { CreateTrayPayload, Tray } from '../../types/tray.types';
 
 interface RecipeRow {
   id: number;
@@ -18,11 +18,12 @@ interface TrayFormModalProps {
   onSubmit: (payload: CreateTrayPayload) => Promise<void>;
   recipes: Recipe[];
   profitRules: ProfitRule[];
+  initialData?: Tray | null;
 }
 
 let rowCounter = 0;
 
-export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules }: TrayFormModalProps) {
+export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules, initialData }: TrayFormModalProps) {
   const [name, setName] = useState('');
   const [rows, setRows] = useState<RecipeRow[]>([{ id: ++rowCounter, recipeId: '', quantity: '' }]);
   const [profitRuleId, setProfitRuleId] = useState('');
@@ -30,15 +31,28 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!isOpen) {
-      setName('');
-      setRows([{ id: ++rowCounter, recipeId: '', quantity: '' }]);
-      setProfitRuleId(profitRules[0]?._id ?? '');
+    if (isOpen) {
+      if (initialData) {
+        setName(initialData.name);
+        setProfitRuleId(initialData.profitRuleId);
+
+        const rRows: RecipeRow[] = initialData.recipes.map((r) => ({
+          id: ++rowCounter,
+          recipeId: r.recipeId,
+          quantity: r.quantity.toString(),
+        }));
+
+        if (rRows.length === 0) rRows.push({ id: ++rowCounter, recipeId: '', quantity: '' });
+
+        setRows(rRows);
+      } else {
+        setName('');
+        setRows([{ id: ++rowCounter, recipeId: '', quantity: '' }]);
+        setProfitRuleId(profitRules[0]?._id ?? '');
+      }
       setError('');
-    } else {
-      setProfitRuleId(profitRules[0]?._id ?? '');
     }
-  }, [isOpen, profitRules]);
+  }, [isOpen, initialData, profitRules]);
 
   const fmt = (v: number) =>
     `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -60,7 +74,7 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
 
   const selectedRule = getRule(profitRuleId);
   const sellingPrice = selectedRule
-    ? totalCost * (1 + selectedRule.marginPercentage / 100)
+    ? totalCost * (1 + selectedRule.markupPercentage / 100)
     : 0;
 
   const isValid = name.trim().length >= 2 && validRows.length > 0 && profitRuleId !== '';
@@ -98,7 +112,7 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
       });
       onClose();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Error al crear la bandeja.';
+      const msg = e instanceof Error ? e.message : initialData ? 'Error al actualizar la bandeja.' : 'Error al crear la bandeja.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -106,7 +120,7 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Nueva Bandeja">
+    <Modal isOpen={isOpen} onClose={onClose} title={initialData ? "Editar Bandeja" : "Nueva Bandeja"}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
         {/* Name */}
         <div>
@@ -177,15 +191,15 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
 
         {/* Profit rule */}
         <div>
-          <label style={labelStyle}>Margen de ganancia</label>
+          <label style={labelStyle}>Markup de ganancia</label>
           <select
             value={profitRuleId}
             onChange={(e) => setProfitRuleId(e.target.value)}
             style={inputStyle}
           >
-            <option value="">Seleccioná un margen...</option>
+            <option value="">Seleccioná un markup...</option>
             {profitRules.map((r) => (
-              <option key={r._id} value={r._id}>{r.name} — {r.marginPercentage}%</option>
+              <option key={r._id} value={r._id}>{r.name} — {r.markupPercentage}%</option>
             ))}
           </select>
         </div>
@@ -198,7 +212,7 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
             </span>
             {selectedRule && (
               <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                Margen aplicado: <strong>{selectedRule.name} ({selectedRule.marginPercentage}%)</strong>
+                Markup aplicado: <strong>{selectedRule.name} ({selectedRule.markupPercentage}%)</strong>
               </span>
             )}
             <span style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 700, color: 'var(--color-primary)' }}>
@@ -215,7 +229,7 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
         <div style={{ display: 'flex', gap: 'var(--space-md)', paddingTop: 'var(--space-xs)' }}>
           <button onClick={onClose} disabled={loading} style={cancelBtnStyle}>Cancelar</button>
           <button onClick={handleSubmit} disabled={!isValid || loading} style={submitBtnStyle(!isValid || loading)}>
-            {loading ? 'Creando...' : 'Crear Bandeja'}
+            {loading ? 'Guardando...' : initialData ? 'Guardar Cambios' : 'Crear Bandeja'}
           </button>
         </div>
       </div>

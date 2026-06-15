@@ -1,5 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { findAllSales, getSaleStats, createSale } from '../services/sales.service';
+import { validate } from '../middleware/validate';
+import { CreateSaleSchema } from '../validation/schemas';
 
 const router = Router();
 
@@ -46,7 +48,7 @@ router.get('/stats', async (_req: Request, res: Response, next: NextFunction) =>
   }
 });
 
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', validate(CreateSaleSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await createSale(req.body);
     res.json({

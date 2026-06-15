@@ -58,7 +58,7 @@ export function ProfitRulesPage() {
             margin: 0,
           }}
         >
-          Márgenes de Ganancia
+          Markups de Ganancia
         </h1>
         <p
           style={{
@@ -68,7 +68,7 @@ export function ProfitRulesPage() {
             margin: 'var(--space-sm) 0 0',
           }}
         >
-          Elegí el margen al crear o editar cada receta
+          Elegí el markup al crear o editar cada receta
         </p>
       </div>
 

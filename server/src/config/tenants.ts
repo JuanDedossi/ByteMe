@@ -24,7 +24,7 @@ export function getTenants(): TenantConfig[] {
 
   // Fallback: single user from APP_SECRET (backward compatible)
   const secret = process.env.APP_SECRET;
-  const dbName = process.env.DB_NAME || 'mordisquitos';
+  const dbName = process.env.DB_NAME || 'byteme';
   if (secret) {
     _tenants = [{ pin: secret, dbName, label: 'default' }];
   } else {

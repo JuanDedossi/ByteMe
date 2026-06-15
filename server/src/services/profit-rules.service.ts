@@ -6,13 +6,13 @@ import {
 export interface CreateProfitRuleInput {
   name: string;
   description?: string;
-  marginPercentage: number;
+  markupPercentage: number;
 }
 
 export interface UpdateProfitRuleInput {
   name?: string;
   description?: string;
-  marginPercentage?: number;
+  markupPercentage?: number;
 }
 
 export async function findAllProfitRules(): Promise<ProfitRuleDocument[]> {
@@ -27,7 +27,7 @@ export async function findProfitRuleById(
   const ProfitRule = getProfitRuleModel();
   const rule = await ProfitRule.findById(id).exec();
   if (!rule) {
-    throw { status: 404, message: 'Regla de ganancia no encontrada' };
+    throw { status: 404, message: 'Profit rule not found' };
   }
   return rule as ProfitRuleDocument;
 }
