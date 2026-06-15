@@ -17,7 +17,7 @@ export interface EnrichedRecipe {
   cost: number;
   profitRuleId: Types.ObjectId;
   profitRuleName: string;
-  marginPercentage: number;
+  markupPercentage: number;
   sellingPrice: number;
   sellUnit: string;
   yieldGrams: number;
@@ -165,7 +165,7 @@ async function enrichRecipes(
       };
     });
 
-    const margin = rule?.marginPercentage ?? 0;
+    const margin = rule?.markupPercentage ?? 0;
     const sellUnit = recipe.sellUnit ?? 'unidad';
     const yieldGrams = recipe.yieldGrams ?? 0;
     const yieldUnits = (recipe as any).yieldUnits ?? 1;
@@ -195,7 +195,7 @@ async function enrichRecipes(
       ingredients: enrichedIngredients,
       cost: totalCost,
       profitRuleName: rule?.name ?? 'Desconocido',
-      marginPercentage: margin,
+      markupPercentage: margin,
       sellingPrice,
       sellUnit,
       yieldGrams,
@@ -407,7 +407,7 @@ export async function updateRecipeStock(
   const Recipe = getRecipeModel();
   const updated = await Recipe.findByIdAndUpdate(
     id,
-    { $set: { stock: dto.stock } },
+    { $set: { stock: Math.max(0, dto.stock) } },
     { new: true },
   ).exec();
   if (!updated) throw { status: 404, message: 'Receta no encontrada' };

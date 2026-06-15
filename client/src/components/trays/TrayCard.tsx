@@ -115,7 +115,7 @@ export function TrayCard({ tray, profitRules, onEdit, onDelete, onUpdatePrice }:
               }}
             >
               {profitRules.map((r) => (
-                <option key={r._id} value={r._id}>{r.name} — {r.marginPercentage}%</option>
+                <option key={r._id} value={r._id}>{r.name} — {r.markupPercentage}%</option>
               ))}
             </select>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-xs)', marginTop: 'var(--space-xs)' }}>
@@ -131,7 +131,7 @@ export function TrayCard({ tray, profitRules, onEdit, onDelete, onUpdatePrice }:
                   {tray.name}
                 </span>
                 <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--color-text-secondary)', margin: 'var(--space-xs) 0 0' }}>
-                  {tray.profitRuleName} · {tray.marginPercentage}% margen · {tray.recipes.length} {tray.recipes.length === 1 ? 'receta' : 'recetas'}
+                  {tray.profitRuleName} · {tray.markupPercentage}% markup · {tray.recipes.length} {tray.recipes.length === 1 ? 'receta' : 'recetas'}
                 </p>
               </div>
               <div style={{ textAlign: 'right', marginLeft: 'var(--space-md)' }}>
@@ -212,7 +212,7 @@ export function TrayCard({ tray, profitRules, onEdit, onDelete, onUpdatePrice }:
               Costo de producción: <strong>{fmt(tray.cost)}</strong>
             </span>
             <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-              Margen ({tray.marginPercentage}%): <strong>{fmt(tray.sellingPrice - tray.cost)}</strong>
+              Markup ({tray.markupPercentage}%): <strong>{fmt(tray.sellingPrice - tray.cost)}</strong>
             </span>
             <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-primary)' }}>
               Precio de venta: {fmt(tray.sellingPrice)}

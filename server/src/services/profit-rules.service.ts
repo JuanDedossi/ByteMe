@@ -6,13 +6,13 @@ import {
 export interface CreateProfitRuleInput {
   name: string;
   description?: string;
-  marginPercentage: number;
+  markupPercentage: number;
 }
 
 export interface UpdateProfitRuleInput {
   name?: string;
   description?: string;
-  marginPercentage?: number;
+  markupPercentage?: number;
 }
 
 export async function findAllProfitRules(): Promise<ProfitRuleDocument[]> {

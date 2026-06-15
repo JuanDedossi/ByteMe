@@ -11,18 +11,18 @@ interface ProfitRuleCardProps {
 export function ProfitRuleCard({ rule, onEdit, onDelete }: ProfitRuleCardProps) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(rule.name);
-  const [editPercentage, setEditPercentage] = useState(String(rule.marginPercentage));
+  const [editPercentage, setEditPercentage] = useState(String(rule.markupPercentage));
   const [editDescription, setEditDescription] = useState(rule.description || '');
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
     const name = editName.trim();
-    const marginPercentage = parseFloat(editPercentage);
-    if (!name || isNaN(marginPercentage) || marginPercentage < 0) return;
+    const markupPercentage = parseFloat(editPercentage);
+    if (!name || isNaN(markupPercentage) || markupPercentage < 0) return;
 
     const payload: UpdateProfitRulePayload = {};
     if (name !== rule.name) payload.name = name;
-    if (marginPercentage !== rule.marginPercentage) payload.marginPercentage = marginPercentage;
+    if (markupPercentage !== rule.markupPercentage) payload.markupPercentage = markupPercentage;
     if (editDescription.trim() !== (rule.description || '')) payload.description = editDescription.trim();
 
     if (Object.keys(payload).length === 0) {
@@ -42,7 +42,7 @@ export function ProfitRuleCard({ rule, onEdit, onDelete }: ProfitRuleCardProps) 
   const handleCancel = () => {
     setEditing(false);
     setEditName(rule.name);
-    setEditPercentage(String(rule.marginPercentage));
+    setEditPercentage(String(rule.markupPercentage));
     setEditDescription(rule.description || '');
   };
 
@@ -159,7 +159,7 @@ export function ProfitRuleCard({ rule, onEdit, onDelete }: ProfitRuleCardProps) 
                 whiteSpace: 'nowrap',
               }}
             >
-              {rule.marginPercentage}%
+              {rule.markupPercentage}%
             </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-xs)' }}>

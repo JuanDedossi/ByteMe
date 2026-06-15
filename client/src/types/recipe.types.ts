@@ -14,7 +14,7 @@ export interface Recipe {
   cost: number;
   profitRuleId: string;
   profitRuleName: string;
-  marginPercentage: number;
+  markupPercentage: number;
   sellingPrice: number;
   customSellingPrice: number | null;
   sellUnit: string;

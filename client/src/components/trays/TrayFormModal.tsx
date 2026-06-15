@@ -60,7 +60,7 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
 
   const selectedRule = getRule(profitRuleId);
   const sellingPrice = selectedRule
-    ? totalCost * (1 + selectedRule.marginPercentage / 100)
+    ? totalCost * (1 + selectedRule.markupPercentage / 100)
     : 0;
 
   const isValid = name.trim().length >= 2 && validRows.length > 0 && profitRuleId !== '';
@@ -177,15 +177,15 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
 
         {/* Profit rule */}
         <div>
-          <label style={labelStyle}>Margen de ganancia</label>
+          <label style={labelStyle}>Markup de ganancia</label>
           <select
             value={profitRuleId}
             onChange={(e) => setProfitRuleId(e.target.value)}
             style={inputStyle}
           >
-            <option value="">Seleccioná un margen...</option>
+            <option value="">Seleccioná un markup...</option>
             {profitRules.map((r) => (
-              <option key={r._id} value={r._id}>{r.name} — {r.marginPercentage}%</option>
+              <option key={r._id} value={r._id}>{r.name} — {r.markupPercentage}%</option>
             ))}
           </select>
         </div>
@@ -198,7 +198,7 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules 
             </span>
             {selectedRule && (
               <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                Margen aplicado: <strong>{selectedRule.name} ({selectedRule.marginPercentage}%)</strong>
+                Markup aplicado: <strong>{selectedRule.name} ({selectedRule.markupPercentage}%)</strong>
               </span>
             )}
             <span style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 700, color: 'var(--color-primary)' }}>

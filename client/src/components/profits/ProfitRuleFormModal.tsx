@@ -10,11 +10,11 @@ interface ProfitRuleFormModalProps {
 
 export function ProfitRuleFormModal({ isOpen, onClose, onSubmit }: ProfitRuleFormModalProps) {
   const [name, setName] = useState('');
-  const [marginPercentage, setMarginPercentage] = useState('');
+  const [markupPercentage, setMarkupPercentage] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isValid = name.trim().length >= 2 && marginPercentage !== '' && parseFloat(marginPercentage) >= 0;
+  const isValid = name.trim().length >= 2 && markupPercentage !== '' && parseFloat(markupPercentage) >= 0;
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -22,11 +22,11 @@ export function ProfitRuleFormModal({ isOpen, onClose, onSubmit }: ProfitRuleFor
     try {
       await onSubmit({
         name: name.trim(),
-        marginPercentage: parseFloat(marginPercentage),
+        markupPercentage: parseFloat(markupPercentage),
         description: description.trim() || undefined,
       });
       setName('');
-      setMarginPercentage('');
+      setMarkupPercentage('');
       setDescription('');
       onClose();
     } finally {
@@ -36,7 +36,7 @@ export function ProfitRuleFormModal({ isOpen, onClose, onSubmit }: ProfitRuleFor
 
   const handleClose = () => {
     setName('');
-    setMarginPercentage('');
+    setMarkupPercentage('');
     setDescription('');
     onClose();
   };
@@ -56,14 +56,14 @@ export function ProfitRuleFormModal({ isOpen, onClose, onSubmit }: ProfitRuleFor
           />
         </div>
 
-        {/* Margin */}
+        {/* Markup */}
         <div>
-          <label style={labelStyle}>Porcentaje de margen</label>
+          <label style={labelStyle}>Porcentaje de markup</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
             <input
               type="number"
-              value={marginPercentage}
-              onChange={(e) => setMarginPercentage(e.target.value)}
+              value={markupPercentage}
+              onChange={(e) => setMarkupPercentage(e.target.value)}
               placeholder="Ej: 25"
               min="0"
               step="1"
@@ -96,7 +96,7 @@ export function ProfitRuleFormModal({ isOpen, onClose, onSubmit }: ProfitRuleFor
         </div>
 
         {/* Preview */}
-        {marginPercentage !== '' && parseFloat(marginPercentage) >= 0 && (
+        {markupPercentage !== '' && parseFloat(markupPercentage) >= 0 && (
           <div
             style={{
               background: '#f8f4db',
@@ -107,7 +107,7 @@ export function ProfitRuleFormModal({ isOpen, onClose, onSubmit }: ProfitRuleFor
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)', margin: 0 }}>
               Ejemplo: si una receta cuesta <strong>$1.000</strong>, el precio de venta sería{' '}
               <strong style={{ color: 'var(--color-primary)' }}>
-                ${((1000 * (1 + parseFloat(marginPercentage) / 100))).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${((1000 * (1 + parseFloat(markupPercentage) / 100))).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </strong>
             </p>
           </div>

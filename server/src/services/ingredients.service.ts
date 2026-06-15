@@ -64,6 +64,13 @@ export async function findIngredientsByIds(
 export async function registerPurchase(
   dto: RegisterPurchaseInput,
 ): Promise<IngredientDocument> {
+  if (dto.quantityPurchased <= 0) {
+    throw { status: 400, message: 'La cantidad comprada debe ser mayor a 0' };
+  }
+  if (dto.pricePaid < 0) {
+    throw { status: 400, message: 'El precio pagado no puede ser negativo' };
+  }
+
   const Ingredient = getIngredientModel();
   const PurchaseHistory = getPurchaseHistoryModel();
   const Recipe = getRecipeModel();
@@ -147,6 +154,16 @@ export async function updateIngredient(
   id: string,
   dto: UpdateIngredientInput,
 ): Promise<IngredientDocument> {
+  if (dto.costPerKg !== undefined && dto.costPerKg < 0) {
+    throw { status: 400, message: 'El costo por kg no puede ser negativo' };
+  }
+  if (dto.costPer100g !== undefined && dto.costPer100g < 0) {
+    throw { status: 400, message: 'El costo por 100g no puede ser negativo' };
+  }
+  if (dto.costPerUnit !== undefined && dto.costPerUnit < 0) {
+    throw { status: 400, message: 'El costo por unidad no puede ser negativo' };
+  }
+
   const Ingredient = getIngredientModel();
   const Recipe = getRecipeModel();
   if (dto.name) {

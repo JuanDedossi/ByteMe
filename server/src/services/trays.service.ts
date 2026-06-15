@@ -21,7 +21,7 @@ export interface EnrichedTray {
   cost: number;
   profitRuleId: Types.ObjectId;
   profitRuleName: string;
-  marginPercentage: number;
+  markupPercentage: number;
   sellingPrice: number;
   customSellingPrice: number | null;
   stock: number;
@@ -84,7 +84,7 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
     };
   });
 
-  const margin = rule?.marginPercentage ?? 0;
+  const margin = rule?.markupPercentage ?? 0;
   const customSellingPrice: number | null = (tray as any).customSellingPrice ?? null;
 
   let sellingPrice: number;
@@ -101,7 +101,7 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
     recipes,
     cost: totalCost,
     profitRuleName: rule?.name ?? 'Desconocido',
-    marginPercentage: margin,
+    markupPercentage: margin,
     sellingPrice,
     customSellingPrice,
   };
