@@ -7,6 +7,11 @@ import {
   deleteIngredient,
   checkIngredientInUse,
 } from '../services/ingredients.service';
+import { validate } from '../middleware/validate';
+import {
+  RegisterPurchaseSchema,
+  UpdateIngredientSchema,
+} from '../validation/schemas';
 
 const router = Router();
 
@@ -39,7 +44,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.post('/purchase', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/purchase', validate(RegisterPurchaseSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await registerPurchase(req.body);
     res.json({
@@ -52,7 +57,7 @@ router.post('/purchase', async (req: Request, res: Response, next: NextFunction)
   }
 });
 
-router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/:id', validate(UpdateIngredientSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const data = await updateIngredient(id, req.body);
@@ -67,7 +72,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
     const id = req.params.id as string;
     const inUse = await checkIngredientInUse(id);
     if (inUse) {
-      res.json({
+      res.status(409).json({
         success: false,
         error:
           'No se puede eliminar un ingrediente en uso por recetas activas',

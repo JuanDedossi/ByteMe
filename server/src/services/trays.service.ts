@@ -3,6 +3,7 @@ import { getTrayModel, TrayDocument } from '../models/tray.model';
 import { getRecipeModel } from '../models/recipe.model';
 import { findProfitRuleById } from './profit-rules.service';
 import { findRecipeById } from './recipes.service';
+import { roundCurrency } from '../utils/currency';
 
 export interface EnrichedTrayRecipe {
   recipeId: string;
@@ -50,14 +51,12 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
   const recipeIds = [...new Set(tray.recipes.map((r) => r.recipeId.toString()))];
 
   const [enrichedRecipes, rule] = await Promise.all([
-    Promise.all(recipeIds.map((id) => findRecipeById(id).catch(() => null))),
-    findProfitRuleById(tray.profitRuleId.toString()).catch(() => null),
+    Promise.all(recipeIds.map((id) => findRecipeById(id))),
+    findProfitRuleById(tray.profitRuleId.toString()),
   ]);
 
   const enrichedRecipeMap = new Map(
-    enrichedRecipes
-      .filter((r): r is NonNullable<typeof r> => r !== null)
-      .map((r) => [r._id.toString(), r]),
+    enrichedRecipes.map((r) => [r._id.toString(), r]),
   );
 
   let totalCost = 0;
@@ -84,14 +83,14 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
     };
   });
 
-  const margin = rule?.markupPercentage ?? 0;
+  const markupPercentage = rule.markupPercentage;
   const customSellingPrice: number | null = (tray as any).customSellingPrice ?? null;
 
   let sellingPrice: number;
   if (customSellingPrice !== null) {
     sellingPrice = customSellingPrice;
   } else {
-    sellingPrice = totalCost * (1 + margin / 100);
+    sellingPrice = totalCost * (1 + markupPercentage / 100);
   }
 
   const obj = (tray as any).toObject();
@@ -100,10 +99,13 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
     ...obj,
     recipes,
     cost: totalCost,
-    profitRuleName: rule?.name ?? 'Desconocido',
-    markupPercentage: margin,
-    sellingPrice,
-    customSellingPrice,
+    profitRuleName: rule.name,
+    markupPercentage,
+    sellingPrice: roundCurrency(sellingPrice),
+    customSellingPrice:
+      customSellingPrice !== null
+        ? roundCurrency(customSellingPrice)
+        : null,
   };
 }
 
@@ -141,9 +143,7 @@ export async function findAllTrays(
       .exec()) as TrayDocument[];
   }
 
-  const data = await Promise.all(
-    rawData.map((t) => enrichTrayDoc(t)),
-  );
+  const data = await Promise.all(rawData.map((t) => enrichTrayDoc(t)));
   return { data, total };
 }
 
@@ -213,6 +213,10 @@ export async function updateTray(
     }
   }
 
+  if (dto.recipes !== undefined && dto.recipes.length === 0) {
+    throw { status: 400, message: 'tray must have at least one recipe' };
+  }
+
   const updates: Record<string, unknown> = {};
   if (dto.name) updates.name = dto.name;
 
@@ -250,7 +254,14 @@ export async function updateTrayPrice(
   const Tray = getTrayModel();
   const updated = await Tray.findByIdAndUpdate(
     id,
-    { $set: { customSellingPrice: dto.customSellingPrice } },
+    {
+      $set: {
+        customSellingPrice:
+          dto.customSellingPrice !== null
+            ? roundCurrency(dto.customSellingPrice)
+            : null,
+      },
+    },
     { new: true },
   ).exec();
   if (!updated) throw { status: 404, message: 'Bandeja no encontrada' };

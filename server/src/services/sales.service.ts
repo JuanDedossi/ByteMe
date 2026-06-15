@@ -4,6 +4,7 @@ import { getRecipeModel } from '../models/recipe.model';
 import { getTrayModel } from '../models/tray.model';
 import { findRecipeById } from './recipes.service';
 import { findTrayById } from './trays.service';
+import { roundCurrency } from '../utils/currency';
 
 export interface CreateSaleInput {
   items: { recipeId?: string; trayId?: string; quantity: number }[];
@@ -40,13 +41,13 @@ export async function getSaleStats(): Promise<{
 }> {
   const Sale = getSaleModel();
   const now = new Date();
-  // La semana empieza el lunes (0 = domingo, 1 = lunes, etc.)
-  const day = now.getDay();
+  // UTC boundaries para coincidir con los timestamps de MongoDB
+  const day = now.getUTCDay();
   const diffToMonday = day === 0 ? 6 : day - 1;
-  const weekStart = new Date(now);
-  weekStart.setHours(0, 0, 0, 0);
-  weekStart.setDate(now.getDate() - diffToMonday);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const weekStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - diffToMonday),
+  );
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
   const [weeklyResult, monthlyResult] = await Promise.all([
     Sale.aggregate([
@@ -71,6 +72,22 @@ export async function createSale(
   const Sale = getSaleModel();
   const Recipe = getRecipeModel();
   const Tray = getTrayModel();
+
+  for (const item of dto.items) {
+    if (item.recipeId && item.trayId) {
+      throw {
+        status: 400,
+        message: 'item must reference either a recipe or a tray, not both',
+      };
+    }
+    if (!item.recipeId && !item.trayId) {
+      throw {
+        status: 400,
+        message: 'item must reference either a recipe or a tray',
+      };
+    }
+  }
+
   const recipeItems = dto.items.filter((i) => i.recipeId);
   const trayItems = dto.items.filter((i) => i.trayId);
 
@@ -131,10 +148,10 @@ export async function createSale(
 
         if (recipe.sellUnit === 'kg') {
           unitPrice = recipe.pricePerKg;
-          subtotal = (item.quantity / 1000) * recipe.pricePerKg;
+          subtotal = roundCurrency((item.quantity / 1000) * recipe.pricePerKg);
         } else {
           unitPrice = recipe.sellingPrice;
-          subtotal = item.quantity * recipe.sellingPrice;
+          subtotal = roundCurrency(item.quantity * recipe.sellingPrice);
         }
 
         return {
@@ -149,7 +166,7 @@ export async function createSale(
       ...trayItems.map((item, i) => {
         const tray = trays[i];
         const unitPrice = tray.sellingPrice;
-        const subtotal = item.quantity * unitPrice;
+        const subtotal = roundCurrency(item.quantity * unitPrice);
 
         return {
           itemType: 'tray' as const,
@@ -162,7 +179,9 @@ export async function createSale(
       }),
     ];
 
-    const total = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const total = roundCurrency(
+      saleItems.reduce((sum, item) => sum + item.subtotal, 0),
+    );
 
     const [result] = await Sale.create(
       [{ items: saleItems, total }],

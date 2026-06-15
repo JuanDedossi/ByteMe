@@ -2,6 +2,7 @@ import { Types, PipelineStage } from 'mongoose';
 import { getRecipeModel, RecipeDocument } from '../models/recipe.model';
 import { findIngredientsByIds } from './ingredients.service';
 import { findProfitRuleById } from './profit-rules.service';
+import { roundCurrency } from '../utils/currency';
 
 export interface EnrichedRecipe {
   _id: Types.ObjectId;
@@ -62,12 +63,23 @@ export interface UpdateStockInput {
   stock: number;
 }
 
+const MAX_SUB_RECIPE_DEPTH = 10;
+
+function validateKgYield(sellUnit: string, yieldGrams?: number): void {
+  if (sellUnit === 'kg' && (yieldGrams === undefined || yieldGrams <= 0)) {
+    throw {
+      status: 400,
+      message: 'yieldGrams must be > 0 when sellUnit is kg',
+    };
+  }
+}
+
 async function enrichRecipes(
   recipes: RecipeDocument[],
   depth = 0,
+  visited = new Set<string>(),
 ): Promise<EnrichedRecipe[]> {
   if (recipes.length === 0) return [];
-  const Recipe = getRecipeModel();
 
   const ingredientIds = [
     ...new Set(
@@ -79,138 +91,143 @@ async function enrichRecipes(
     ),
   ];
 
-  const subRecipeIds = [
-    ...new Set(
-      recipes.flatMap((r) =>
-        r.ingredients
-          .filter((i) => (i as any).type === 'subRecipe' && (i as any).recipeId)
-          .map((i) => (i as any).recipeId.toString()),
-      ),
-    ),
-  ];
-
-  const ruleIds = [
-    ...new Set(recipes.map((r) => r.profitRuleId.toString())),
-  ];
+  const ruleIds = [...new Set(recipes.map((r) => r.profitRuleId.toString()))];
 
   const [ingredients, ruleResults] = await Promise.all([
     ingredientIds.length > 0 ? findIngredientsByIds(ingredientIds) : Promise.resolve([]),
-    Promise.all(
-      ruleIds.map((id) => findProfitRuleById(id).catch(() => null)),
-    ),
+    Promise.all(ruleIds.map((id) => findProfitRuleById(id))),
   ]);
 
-  // Load sub-recipe costs (max 1 level deep to prevent infinite recursion)
-  let subRecipeMap = new Map<string, EnrichedRecipe>();
-  if (depth < 1 && subRecipeIds.length > 0) {
-    const subRawRecipes = await Recipe.find({ _id: { $in: subRecipeIds } }).exec();
-    const enrichedSubs = await enrichRecipes(subRawRecipes as RecipeDocument[], depth + 1);
-    subRecipeMap = new Map(enrichedSubs.map((r) => [r._id.toString(), r]));
-  }
+  const ingredientMap = new Map(ingredients.map((i) => [i._id.toString(), i]));
+  const ruleMap = new Map(ruleResults.map((r) => [r._id.toString(), r]));
 
-  const ingredientMap = new Map(
-    ingredients.map((i) => [i._id.toString(), i]),
-  );
-  const ruleMap = new Map(
-    ruleResults
-      .filter((r): r is NonNullable<typeof r> => r !== null)
-      .map((r) => [r._id.toString(), r]),
-  );
+  const Recipe = getRecipeModel();
 
-  return recipes.map((recipe) => {
-    const rule = ruleMap.get(recipe.profitRuleId.toString());
-    let totalCost = 0;
+  return Promise.all(
+    recipes.map(async (recipe) => {
+      const rule = ruleMap.get(recipe.profitRuleId.toString());
+      if (!rule) {
+        throw { status: 404, message: 'Profit rule not found' };
+      }
+      const markupPercentage = rule.markupPercentage;
 
-    const enrichedIngredients = recipe.ingredients.map((ri) => {
-      const itemType = (ri as any).type ?? 'ingredient';
+      const branchVisited = new Set(visited);
+      branchVisited.add(recipe._id.toString());
 
-      if (itemType === 'subRecipe') {
-        const recipeId = (ri as any).recipeId?.toString() ?? '';
-        const sub = subRecipeMap.get(recipeId);
-        let cost = 0;
-        if (sub) {
-          if (sub.sellUnit === 'kg' && sub.yieldGrams > 0) {
-            cost = (sub.cost / sub.yieldGrams) * ri.quantity;
-          } else {
-            cost = (sub.cost / (sub.yieldUnits || 1)) * ri.quantity;
+      const subRecipeIds = [
+        ...new Set(
+          recipe.ingredients
+            .filter((i) => (i as any).type === 'subRecipe' && (i as any).recipeId)
+            .map((i) => (i as any).recipeId.toString()),
+        ),
+      ];
+
+      let subRecipeMap = new Map<string, EnrichedRecipe>();
+      if (depth < MAX_SUB_RECIPE_DEPTH && subRecipeIds.length > 0) {
+        const notVisitedIds = subRecipeIds.filter((id) => !branchVisited.has(id));
+        const subRawRecipes = await Recipe.find({ _id: { $in: notVisitedIds } }).exec();
+        const enrichedSubs = await enrichRecipes(
+          subRawRecipes as RecipeDocument[],
+          depth + 1,
+          branchVisited,
+        );
+        subRecipeMap = new Map(enrichedSubs.map((r) => [r._id.toString(), r]));
+      }
+
+      let totalCost = 0;
+
+      const enrichedIngredients = recipe.ingredients.map((ri) => {
+        const itemType = (ri as any).type ?? 'ingredient';
+
+        if (itemType === 'subRecipe') {
+          const recipeId = (ri as any).recipeId?.toString() ?? '';
+          const sub = subRecipeMap.get(recipeId);
+          let cost = 0;
+          if (sub) {
+            if (sub.sellUnit === 'kg' && sub.yieldGrams > 0) {
+              cost = (sub.cost / sub.yieldGrams) * ri.quantity;
+            } else {
+              cost = (sub.cost / (sub.yieldUnits || 1)) * ri.quantity;
+            }
           }
+          totalCost += cost;
+          return {
+            ingredientId: recipeId,
+            ingredientName: sub?.name ?? 'Sub-receta desconocida',
+            ingredientUnit: sub?.sellUnit === 'kg' ? 'g' : 'u.',
+            quantity: ri.quantity,
+            cost,
+            isSubRecipe: true,
+          };
+        }
+
+        const ing = ingredientMap.get(ri.ingredientId!.toString());
+        let cost = 0;
+        if (ing) {
+          cost =
+            ing.unit === 'unidad'
+              ? ing.costPerUnit * ri.quantity
+              : (ing.costPerKg * ri.quantity) / 1000;
         }
         totalCost += cost;
         return {
-          ingredientId: recipeId,
-          ingredientName: sub?.name ?? 'Sub-receta desconocida',
-          ingredientUnit: sub?.sellUnit === 'kg' ? 'g' : 'u.',
+          ingredientId: ri.ingredientId!.toString(),
+          ingredientName: ing?.name ?? 'Desconocido',
+          ingredientUnit: ing?.unit ?? 'kg',
           quantity: ri.quantity,
           cost,
-          isSubRecipe: true,
+          isSubRecipe: false,
         };
+      });
+
+      const sellUnit = recipe.sellUnit ?? 'unidad';
+      const yieldGrams = recipe.yieldGrams ?? 0;
+      const yieldUnits = (recipe as any).yieldUnits ?? 1;
+      const customSellingPrice: number | null = (recipe as any).customSellingPrice ?? null;
+      const isSubRecipe = (recipe as any).isSubRecipe ?? false;
+
+      let sellingPrice: number;
+      let pricePerKg = 0;
+
+      if (customSellingPrice !== null) {
+        sellingPrice = customSellingPrice;
+        if (sellUnit === 'kg') pricePerKg = customSellingPrice;
+      } else if (sellUnit === 'kg' && yieldGrams > 0) {
+        const costPerKg = (totalCost / yieldGrams) * 1000;
+        pricePerKg = costPerKg * (1 + markupPercentage / 100);
+        sellingPrice = pricePerKg;
+      } else {
+        sellingPrice = (totalCost * (1 + markupPercentage / 100)) / yieldUnits;
       }
 
-      const ing = ingredientMap.get(ri.ingredientId!.toString());
-      let cost = 0;
-      if (ing) {
-        cost =
-          ing.unit === 'unidad'
-            ? ing.costPerUnit * ri.quantity
-            : (ing.costPerKg * ri.quantity) / 1000;
-      }
-      totalCost += cost;
+      const obj = (recipe as any).toObject();
+
+      const pricePer100g =
+        sellUnit === 'kg' ? roundCurrency(pricePerKg / 10) : 0;
+
       return {
-        ingredientId: ri.ingredientId!.toString(),
-        ingredientName: ing?.name ?? 'Desconocido',
-        ingredientUnit: ing?.unit ?? 'kg',
-        quantity: ri.quantity,
-        cost,
-        isSubRecipe: false,
+        ...obj,
+        ingredients: enrichedIngredients,
+        cost: totalCost,
+        profitRuleName: rule.name,
+        markupPercentage,
+        sellingPrice: roundCurrency(sellingPrice),
+        sellUnit,
+        yieldGrams,
+        yieldUnits,
+        customSellingPrice:
+          customSellingPrice !== null
+            ? roundCurrency(customSellingPrice)
+            : null,
+        pricePerKg: roundCurrency(pricePerKg),
+        pricePer100g,
+        isSubRecipe,
       };
-    });
-
-    const margin = rule?.markupPercentage ?? 0;
-    const sellUnit = recipe.sellUnit ?? 'unidad';
-    const yieldGrams = recipe.yieldGrams ?? 0;
-    const yieldUnits = (recipe as any).yieldUnits ?? 1;
-    const customSellingPrice: number | null = (recipe as any).customSellingPrice ?? null;
-    const isSubRecipe = (recipe as any).isSubRecipe ?? false;
-
-    let sellingPrice: number;
-    let pricePerKg = 0;
-
-    if (customSellingPrice !== null) {
-      sellingPrice = customSellingPrice;
-      if (sellUnit === 'kg') pricePerKg = customSellingPrice;
-    } else if (sellUnit === 'kg' && yieldGrams > 0) {
-      const costPerKg = (totalCost / yieldGrams) * 1000;
-      pricePerKg = costPerKg * (1 + margin / 100);
-      sellingPrice = pricePerKg;
-    } else {
-      sellingPrice = (totalCost * (1 + margin / 100)) / yieldUnits;
-    }
-
-    const obj = (recipe as any).toObject();
-
-    const pricePer100g = sellUnit === 'kg' ? pricePerKg / 10 : 0;
-
-    return {
-      ...obj,
-      ingredients: enrichedIngredients,
-      cost: totalCost,
-      profitRuleName: rule?.name ?? 'Desconocido',
-      markupPercentage: margin,
-      sellingPrice,
-      sellUnit,
-      yieldGrams,
-      yieldUnits,
-      customSellingPrice,
-      pricePerKg,
-      pricePer100g,
-      isSubRecipe,
-    };
-  });
+    }),
+  );
 }
 
-async function enrichRecipe(
-  recipe: RecipeDocument,
-): Promise<EnrichedRecipe> {
+async function enrichRecipe(recipe: RecipeDocument): Promise<EnrichedRecipe> {
   const [result] = await enrichRecipes([recipe]);
   return result;
 }
@@ -287,6 +304,9 @@ export async function createRecipe(
     throw { status: 404, message: 'Uno o más ingredientes no existen' };
   }
 
+  const sellUnit = dto.sellUnit ?? 'unidad';
+  validateKgYield(sellUnit, dto.yieldGrams);
+
   const combinedIngredients = [
     ...dto.ingredients.map((i) => ({
       type: 'ingredient' as const,
@@ -304,7 +324,7 @@ export async function createRecipe(
     name: dto.name,
     ingredients: combinedIngredients,
     profitRuleId: new Types.ObjectId(dto.profitRuleId),
-    sellUnit: dto.sellUnit ?? 'unidad',
+    sellUnit,
     yieldGrams: dto.yieldGrams,
     yieldUnits: dto.yieldUnits ?? 1,
     isSubRecipe: dto.isSubRecipe ?? false,
@@ -377,6 +397,11 @@ export async function updateRecipe(
   if (dto.yieldGrams !== undefined) updates.yieldGrams = dto.yieldGrams;
   if (dto.yieldUnits !== undefined) updates.yieldUnits = dto.yieldUnits;
 
+  const effectiveSellUnit = (updates.sellUnit as string | undefined) ?? recipe.sellUnit;
+  const effectiveYieldGrams =
+    (updates.yieldGrams as number | undefined) ?? recipe.yieldGrams;
+  validateKgYield(effectiveSellUnit, effectiveYieldGrams);
+
   const updated = await Recipe.findByIdAndUpdate(
     id,
     { $set: updates },
@@ -393,7 +418,14 @@ export async function updateRecipePrice(
   const Recipe = getRecipeModel();
   const updated = await Recipe.findByIdAndUpdate(
     id,
-    { $set: { customSellingPrice: dto.customSellingPrice } },
+    {
+      $set: {
+        customSellingPrice:
+          dto.customSellingPrice !== null
+            ? roundCurrency(dto.customSellingPrice)
+            : null,
+      },
+    },
     { new: true },
   ).exec();
   if (!updated) throw { status: 404, message: 'Receta no encontrada' };

@@ -8,6 +8,8 @@ import {
   updateTrayStock,
   deleteTray,
 } from '../services/trays.service';
+import { validate } from '../middleware/validate';
+import { CreateTraySchema, UpdateTraySchema } from '../validation/schemas';
 
 const router = Router();
 
@@ -42,7 +44,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', validate(CreateTraySchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await createTray(req.body);
     res.json({ success: true, data, message: 'Bandeja creada exitosamente' });
@@ -51,7 +53,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/:id', validate(UpdateTraySchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const data = await updateTray(id, req.body);

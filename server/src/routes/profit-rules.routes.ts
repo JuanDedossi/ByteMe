@@ -6,6 +6,11 @@ import {
   updateProfitRule,
   deleteProfitRule,
 } from '../services/profit-rules.service';
+import { validate } from '../middleware/validate';
+import {
+  CreateProfitRuleSchema,
+  UpdateProfitRuleSchema,
+} from '../validation/schemas';
 
 const router = Router();
 
@@ -28,7 +33,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', validate(CreateProfitRuleSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await createProfitRule(req.body);
     res.json({ success: true, data, message: 'Regla creada exitosamente' });
@@ -37,7 +42,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/:id', validate(UpdateProfitRuleSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const data = await updateProfitRule(id, req.body);
