@@ -8,6 +8,7 @@ import { RecipesPage } from './pages/RecipesPage';
 import { StockSalesPage } from './pages/StockSalesPage';
 import { TraysPage } from './pages/TraysPage';
 import { SalesHistoryPage } from './pages/SalesHistoryPage';
+import { ComplementosPage } from './pages/ComplementosPage';
 
 const TOKEN_KEY = 'mordisquitos-token';
 
@@ -36,6 +37,7 @@ function App() {
         <Route path="/markups" element={<ProfitRulesPage />} />
         <Route path="/stock" element={<StockSalesPage />} />
         <Route path="/bandejas" element={<TraysPage />} />
+        <Route path="/complementos" element={<ComplementosPage />} />
         <Route path="/historial" element={<SalesHistoryPage />} />
         <Route path="/calculadora" element={<CalculatorPage />} />
       </Route>
