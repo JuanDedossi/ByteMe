@@ -3,7 +3,21 @@ import { getTrayModel, TrayDocument } from '../models/tray.model';
 import { getRecipeModel } from '../models/recipe.model';
 import { findProfitRuleById } from './profit-rules.service';
 import { findRecipeById } from './recipes.service';
+import { findComplementsByIds } from './complements.service';
 import { roundCurrency } from '../utils/currency';
+import {
+  calculateTrayCost,
+  SubRecipeCostContext,
+} from '../utils/cost-calculator';
+import type { ComplementDocument } from '../models/complement.model';
+
+export interface EnrichedTrayComplement {
+  complementId: string;
+  complementName: string;
+  unit: string;
+  quantity: number;
+  cost: number;
+}
 
 export interface EnrichedTrayRecipe {
   recipeId: string;
@@ -12,6 +26,8 @@ export interface EnrichedTrayRecipe {
   recipeYieldUnits: number;
   recipeYieldGrams: number;
   quantity: number;
+  // Per-recipe cost contribution inside the tray, computed from
+  // recipe.costBase (never costTotal).
   cost: number;
 }
 
@@ -19,6 +35,7 @@ export interface EnrichedTray {
   _id: Types.ObjectId;
   name: string;
   recipes: EnrichedTrayRecipe[];
+  complements: EnrichedTrayComplement[];
   cost: number;
   profitRuleId: Types.ObjectId;
   profitRuleName: string;
@@ -34,12 +51,14 @@ export interface EnrichedTray {
 export interface CreateTrayInput {
   name: string;
   recipes: { recipeId: string; quantity: number }[];
+  complements?: { complementId: string; quantity: number }[];
   profitRuleId: string;
 }
 
 export interface UpdateTrayInput {
   name?: string;
   recipes?: { recipeId: string; quantity: number }[];
+  complements?: { complementId: string; quantity: number }[];
   profitRuleId?: string;
 }
 
@@ -49,29 +68,51 @@ export interface UpdateTrayPriceInput {
 
 async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
   const recipeIds = [...new Set(tray.recipes.map((r) => r.recipeId.toString()))];
+  const complementIds = [
+    ...new Set(
+      (tray.complements ?? []).map((c) => c.complementId.toString()),
+    ),
+  ];
 
-  const [enrichedRecipes, rule] = await Promise.all([
+  const [enrichedRecipes, complements] = await Promise.all([
     Promise.all(recipeIds.map((id) => findRecipeById(id))),
+    complementIds.length > 0
+      ? findComplementsByIds(complementIds)
+      : Promise.resolve([] as ComplementDocument[]),
     findProfitRuleById(tray.profitRuleId.toString()),
   ]);
 
   const enrichedRecipeMap = new Map(
     enrichedRecipes.map((r) => [r._id.toString(), r]),
   );
+  const complementMap = new Map(
+    complements.map((c) => [c._id.toString(), c]),
+  );
 
-  let totalCost = 0;
+  const subCostContext = new Map<string, SubRecipeCostContext>();
+  for (const [id, r] of enrichedRecipeMap) {
+    subCostContext.set(id, {
+      costBase: r.costBase,
+      sellUnit: r.sellUnit,
+      yieldGrams: r.yieldGrams,
+      yieldUnits: r.yieldUnits,
+    });
+  }
+
+  const totalCost = calculateTrayCost(tray, subCostContext, complementMap);
 
   const recipes: EnrichedTrayRecipe[] = tray.recipes.map((tr) => {
     const recipe = enrichedRecipeMap.get(tr.recipeId.toString());
     let cost = 0;
     if (recipe) {
+      // Use recipe.costBase (NOT costTotal) so sub-recipe complements do
+      // not double-count at the tray level.
       if (recipe.sellUnit === 'kg' && recipe.yieldGrams > 0) {
-        cost = (recipe.cost / recipe.yieldGrams) * tr.quantity;
+        cost = (recipe.costBase / recipe.yieldGrams) * tr.quantity;
       } else {
-        cost = (recipe.cost / (recipe.yieldUnits || 1)) * tr.quantity;
+        cost = (recipe.costBase / (recipe.yieldUnits || 1)) * tr.quantity;
       }
     }
-    totalCost += cost;
     return {
       recipeId: tr.recipeId.toString(),
       recipeName: recipe?.name ?? 'Desconocida',
@@ -83,8 +124,24 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
     };
   });
 
+  const enrichedComplements: EnrichedTrayComplement[] = (tray.complements ?? []).map(
+    (c) => {
+      const comp = complementMap.get(c.complementId.toString());
+      const cost = comp ? comp.costPerUnit * c.quantity : 0;
+      return {
+        complementId: c.complementId.toString(),
+        complementName: comp?.name ?? 'Complemento desconocido',
+        unit: comp?.unit ?? 'unidad',
+        quantity: c.quantity,
+        cost,
+      };
+    },
+  );
+
+  const rule = await findProfitRuleById(tray.profitRuleId.toString());
   const markupPercentage = rule.markupPercentage;
-  const customSellingPrice: number | null = (tray as any).customSellingPrice ?? null;
+  const customSellingPrice: number | null =
+    (tray as any).customSellingPrice ?? null;
 
   let sellingPrice: number;
   if (customSellingPrice !== null) {
@@ -98,6 +155,7 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
   return {
     ...obj,
     recipes,
+    complements: enrichedComplements,
     cost: totalCost,
     profitRuleName: rule.name,
     markupPercentage,
@@ -179,11 +237,24 @@ export async function createTray(dto: CreateTrayInput): Promise<EnrichedTray> {
     throw { status: 404, message: 'Una o más recetas no existen' };
   }
 
+  if (dto.complements && dto.complements.length > 0) {
+    const foundComps = await findComplementsByIds(
+      dto.complements.map((c) => c.complementId),
+    );
+    if (foundComps.length !== dto.complements.length) {
+      throw { status: 404, message: 'Uno o más complementos no existen' };
+    }
+  }
+
   const tray = await Tray.create({
     name: dto.name,
     recipes: dto.recipes.map((r) => ({
       recipeId: new Types.ObjectId(r.recipeId),
       quantity: r.quantity,
+    })),
+    complements: (dto.complements ?? []).map((c) => ({
+      complementId: new Types.ObjectId(c.complementId),
+      quantity: c.quantity,
     })),
     profitRuleId: new Types.ObjectId(dto.profitRuleId),
   });
@@ -234,6 +305,23 @@ export async function updateTray(
     updates.recipes = dto.recipes.map((r) => ({
       recipeId: new Types.ObjectId(r.recipeId),
       quantity: r.quantity,
+    }));
+    updates.customSellingPrice = null;
+  }
+
+  if (dto.complements !== undefined) {
+    const complementItems = dto.complements ?? [];
+    if (complementItems.length > 0) {
+      const foundComps = await findComplementsByIds(
+        complementItems.map((c) => c.complementId),
+      );
+      if (foundComps.length !== complementItems.length) {
+        throw { status: 404, message: 'Uno o más complementos no existen' };
+      }
+    }
+    updates.complements = complementItems.map((c) => ({
+      complementId: new Types.ObjectId(c.complementId),
+      quantity: c.quantity,
     }));
     updates.customSellingPrice = null;
   }

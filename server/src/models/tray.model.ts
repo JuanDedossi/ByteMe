@@ -6,9 +6,15 @@ export interface ITrayRecipe {
   quantity: number;
 }
 
+export interface ITrayComplement {
+  complementId: Types.ObjectId;
+  quantity: number;
+}
+
 export interface ITray {
   name: string;
   recipes: ITrayRecipe[];
+  complements: ITrayComplement[];
   profitRuleId: Types.ObjectId;
   customSellingPrice: number | null;
   stock: number;
@@ -29,10 +35,23 @@ const TrayRecipeSchema = new Schema(
   { _id: false },
 );
 
+const TrayComplementSchema = new Schema(
+  {
+    complementId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Complement',
+      required: true,
+    },
+    quantity: { type: Number, required: true, min: 1 },
+  },
+  { _id: false },
+);
+
 const TraySchema = new Schema<TrayDocument>(
   {
     name: { type: String, required: true, unique: true, trim: true },
     recipes: { type: [TrayRecipeSchema], default: [] },
+    complements: { type: [TrayComplementSchema], default: [] },
     profitRuleId: {
       type: Schema.Types.ObjectId,
       ref: 'ProfitRule',
@@ -44,6 +63,9 @@ const TraySchema = new Schema<TrayDocument>(
   },
   { timestamps: true },
 );
+
+// Index for cascade: find all trays referencing a given complement.
+TraySchema.index({ 'complements.complementId': 1 });
 
 export function getTrayModel(): mongoose.Model<TrayDocument> {
   const db = mongoose.connection.useDb(getTenantDb(), { useCache: true });

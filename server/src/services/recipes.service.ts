@@ -2,7 +2,14 @@ import { Types, PipelineStage } from 'mongoose';
 import { getRecipeModel, RecipeDocument } from '../models/recipe.model';
 import { findIngredientsByIds } from './ingredients.service';
 import { findProfitRuleById } from './profit-rules.service';
+import { findComplementsByIds } from './complements.service';
 import { roundCurrency } from '../utils/currency';
+import {
+  calculateRecipeCost,
+  SubRecipeCostContext,
+} from '../utils/cost-calculator';
+import type { IngredientDocument } from '../models/ingredient.model';
+import type { ComplementDocument } from '../models/complement.model';
 
 export interface EnrichedRecipe {
   _id: Types.ObjectId;
@@ -15,7 +22,20 @@ export interface EnrichedRecipe {
     cost: number;
     isSubRecipe?: boolean;
   }[];
+  complements: {
+    complementId: string;
+    complementName: string;
+    unit: string;
+    quantity: number;
+    cost: number;
+  }[];
+  // Backward-compatible alias for the recipe's cost (no complements).
+  // Kept so the existing client "Costo producción" line keeps working.
   cost: number;
+  // New: ingredients + sub-recipe costBase (no own complements).
+  costBase: number;
+  // New: costBase + own complements.
+  costTotal: number;
   profitRuleId: Types.ObjectId;
   profitRuleName: string;
   markupPercentage: number;
@@ -37,6 +57,7 @@ export interface CreateRecipeInput {
   name: string;
   ingredients: { ingredientId: string; quantity: number }[];
   subRecipes?: { recipeId: string; quantity: number }[];
+  complements?: { complementId: string; quantity: number }[];
   profitRuleId: string;
   sellUnit?: string;
   yieldGrams?: number;
@@ -48,6 +69,7 @@ export interface UpdateRecipeInput {
   name?: string;
   ingredients?: { ingredientId: string; quantity: number }[];
   subRecipes?: { recipeId: string; quantity: number }[];
+  complements?: { complementId: string; quantity: number }[];
   profitRuleId?: string;
   sellUnit?: string;
   yieldGrams?: number;
@@ -91,14 +113,30 @@ async function enrichRecipes(
     ),
   ];
 
+  const complementIds = [
+    ...new Set(
+      recipes.flatMap((r) =>
+        (r.complements ?? []).map((c) => c.complementId.toString()),
+      ),
+    ),
+  ];
+
   const ruleIds = [...new Set(recipes.map((r) => r.profitRuleId.toString()))];
 
-  const [ingredients, ruleResults] = await Promise.all([
-    ingredientIds.length > 0 ? findIngredientsByIds(ingredientIds) : Promise.resolve([]),
+  const [ingredients, complements, ruleResults] = await Promise.all([
+    ingredientIds.length > 0
+      ? findIngredientsByIds(ingredientIds)
+      : Promise.resolve([] as IngredientDocument[]),
+    complementIds.length > 0
+      ? findComplementsByIds(complementIds)
+      : Promise.resolve([] as ComplementDocument[]),
     Promise.all(ruleIds.map((id) => findProfitRuleById(id))),
   ]);
 
   const ingredientMap = new Map(ingredients.map((i) => [i._id.toString(), i]));
+  const complementMap = new Map(
+    complements.map((c) => [c._id.toString(), c]),
+  );
   const ruleMap = new Map(ruleResults.map((r) => [r._id.toString(), r]));
 
   const Recipe = getRecipeModel();
@@ -134,7 +172,24 @@ async function enrichRecipes(
         subRecipeMap = new Map(enrichedSubs.map((r) => [r._id.toString(), r]));
       }
 
-      let totalCost = 0;
+      // Build sub-recipe context (only costBase, sellUnit, yieldGrams, yieldUnits
+      // are needed for the parent's cost calculation).
+      const subCostContext = new Map<string, SubRecipeCostContext>();
+      for (const [id, sub] of subRecipeMap) {
+        subCostContext.set(id, {
+          costBase: sub.costBase,
+          sellUnit: sub.sellUnit,
+          yieldGrams: sub.yieldGrams,
+          yieldUnits: sub.yieldUnits,
+        });
+      }
+
+      const { costBase, costTotal } = calculateRecipeCost(
+        recipe,
+        ingredientMap,
+        subCostContext,
+        complementMap,
+      );
 
       const enrichedIngredients = recipe.ingredients.map((ri) => {
         const itemType = (ri as any).type ?? 'ingredient';
@@ -142,15 +197,15 @@ async function enrichRecipes(
         if (itemType === 'subRecipe') {
           const recipeId = (ri as any).recipeId?.toString() ?? '';
           const sub = subRecipeMap.get(recipeId);
+          // Sub-recipe contribution always uses sub.costBase (never costTotal).
           let cost = 0;
           if (sub) {
             if (sub.sellUnit === 'kg' && sub.yieldGrams > 0) {
-              cost = (sub.cost / sub.yieldGrams) * ri.quantity;
+              cost = (sub.costBase / sub.yieldGrams) * ri.quantity;
             } else {
-              cost = (sub.cost / (sub.yieldUnits || 1)) * ri.quantity;
+              cost = (sub.costBase / (sub.yieldUnits || 1)) * ri.quantity;
             }
           }
-          totalCost += cost;
           return {
             ingredientId: recipeId,
             ingredientName: sub?.name ?? 'Sub-receta desconocida',
@@ -169,7 +224,6 @@ async function enrichRecipes(
               ? ing.costPerUnit * ri.quantity
               : (ing.costPerKg * ri.quantity) / 1000;
         }
-        totalCost += cost;
         return {
           ingredientId: ri.ingredientId!.toString(),
           ingredientName: ing?.name ?? 'Desconocido',
@@ -177,6 +231,18 @@ async function enrichRecipes(
           quantity: ri.quantity,
           cost,
           isSubRecipe: false,
+        };
+      });
+
+      const enrichedComplements = (recipe.complements ?? []).map((c) => {
+        const comp = complementMap.get(c.complementId.toString());
+        const cost = comp ? comp.costPerUnit * c.quantity : 0;
+        return {
+          complementId: c.complementId.toString(),
+          complementName: comp?.name ?? 'Complemento desconocido',
+          unit: comp?.unit ?? 'unidad',
+          quantity: c.quantity,
+          cost,
         };
       });
 
@@ -193,11 +259,11 @@ async function enrichRecipes(
         sellingPrice = customSellingPrice;
         if (sellUnit === 'kg') pricePerKg = customSellingPrice;
       } else if (sellUnit === 'kg' && yieldGrams > 0) {
-        const costPerKg = (totalCost / yieldGrams) * 1000;
+        const costPerKg = (costTotal / yieldGrams) * 1000;
         pricePerKg = costPerKg * (1 + markupPercentage / 100);
         sellingPrice = pricePerKg;
       } else {
-        sellingPrice = (totalCost * (1 + markupPercentage / 100)) / yieldUnits;
+        sellingPrice = (costTotal * (1 + markupPercentage / 100)) / yieldUnits;
       }
 
       const obj = (recipe as any).toObject();
@@ -208,7 +274,12 @@ async function enrichRecipes(
       return {
         ...obj,
         ingredients: enrichedIngredients,
-        cost: totalCost,
+        complements: enrichedComplements,
+        // Backward-compatible: `cost` continues to mean the recipe's
+        // ingredient+sub-recipe cost (no own complements).
+        cost: costBase,
+        costBase,
+        costTotal,
         profitRuleName: rule.name,
         markupPercentage,
         sellingPrice: roundCurrency(sellingPrice),
@@ -304,6 +375,15 @@ export async function createRecipe(
     throw { status: 404, message: 'Uno o más ingredientes no existen' };
   }
 
+  if (dto.complements && dto.complements.length > 0) {
+    const foundComps = await findComplementsByIds(
+      dto.complements.map((c) => c.complementId),
+    );
+    if (foundComps.length !== dto.complements.length) {
+      throw { status: 404, message: 'Uno o más complementos no existen' };
+    }
+  }
+
   const sellUnit = dto.sellUnit ?? 'unidad';
   validateKgYield(sellUnit, dto.yieldGrams);
 
@@ -323,6 +403,10 @@ export async function createRecipe(
   const recipe = await Recipe.create({
     name: dto.name,
     ingredients: combinedIngredients,
+    complements: (dto.complements ?? []).map((c) => ({
+      complementId: new Types.ObjectId(c.complementId),
+      quantity: c.quantity,
+    })),
     profitRuleId: new Types.ObjectId(dto.profitRuleId),
     sellUnit,
     yieldGrams: dto.yieldGrams,
@@ -362,7 +446,9 @@ export async function updateRecipe(
     updates.profitRuleId = new Types.ObjectId(dto.profitRuleId);
   }
 
-  const hasIngredientChanges = dto.ingredients !== undefined || dto.subRecipes !== undefined;
+  const hasIngredientChanges =
+    dto.ingredients !== undefined || dto.subRecipes !== undefined;
+  const hasComplementChanges = dto.complements !== undefined;
 
   if (hasIngredientChanges) {
     const ingredientItems = dto.ingredients ?? [];
@@ -389,6 +475,23 @@ export async function updateRecipe(
         quantity: sr.quantity,
       })),
     ];
+    updates.customSellingPrice = null;
+  }
+
+  if (hasComplementChanges) {
+    const complementItems = dto.complements ?? [];
+    if (complementItems.length > 0) {
+      const foundComps = await findComplementsByIds(
+        complementItems.map((c) => c.complementId),
+      );
+      if (foundComps.length !== complementItems.length) {
+        throw { status: 404, message: 'Uno o más complementos no existen' };
+      }
+    }
+    updates.complements = complementItems.map((c) => ({
+      complementId: new Types.ObjectId(c.complementId),
+      quantity: c.quantity,
+    }));
     updates.customSellingPrice = null;
   }
 

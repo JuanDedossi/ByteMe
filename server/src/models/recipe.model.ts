@@ -8,9 +8,15 @@ export interface IRecipeIngredient {
   quantity: number;
 }
 
+export interface IRecipeComplement {
+  complementId: Types.ObjectId;
+  quantity: number;
+}
+
 export interface IRecipe {
   name: string;
   ingredients: IRecipeIngredient[];
+  complements: IRecipeComplement[];
   profitRuleId: Types.ObjectId;
   sellUnit: string;
   yieldGrams: number;
@@ -45,10 +51,23 @@ const RecipeIngredientSchema = new Schema(
   { _id: false },
 );
 
+const RecipeComplementSchema = new Schema(
+  {
+    complementId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Complement',
+      required: true,
+    },
+    quantity: { type: Number, required: true, min: 1 },
+  },
+  { _id: false },
+);
+
 const RecipeSchema = new Schema<RecipeDocument>(
   {
     name: { type: String, required: true, unique: true, trim: true },
     ingredients: { type: [RecipeIngredientSchema], default: [] },
+    complements: { type: [RecipeComplementSchema], default: [] },
     profitRuleId: {
       type: Schema.Types.ObjectId,
       ref: 'ProfitRule',
@@ -69,6 +88,9 @@ const RecipeSchema = new Schema<RecipeDocument>(
   },
   { timestamps: true },
 );
+
+// Index for cascade: find all recipes referencing a given complement.
+RecipeSchema.index({ 'complements.complementId': 1 });
 
 export function getRecipeModel(): mongoose.Model<RecipeDocument> {
   const db = mongoose.connection.useDb(getTenantDb(), { useCache: true });
