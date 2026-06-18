@@ -4,11 +4,18 @@ import { Modal } from '../common/Modal';
 import { SearchableSelect } from '../common/SearchableSelect';
 import type { ProfitRule } from '../../types/profit-rule.types';
 import type { Recipe } from '../../types/recipe.types';
+import type { Complement } from '../../types/complement.types';
 import type { CreateTrayPayload, Tray } from '../../types/tray.types';
 
 interface RecipeRow {
   id: number;
   recipeId: string;
+  quantity: string;
+}
+
+interface ComplementRow {
+  id: number;
+  complementId: string;
   quantity: string;
 }
 
@@ -18,14 +25,26 @@ interface TrayFormModalProps {
   onSubmit: (payload: CreateTrayPayload) => Promise<void>;
   recipes: Recipe[];
   profitRules: ProfitRule[];
+  complements: Complement[];
   initialData?: Tray | null;
 }
 
 let rowCounter = 0;
 
-export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules, initialData }: TrayFormModalProps) {
+export function TrayFormModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  recipes,
+  profitRules,
+  complements,
+  initialData,
+}: TrayFormModalProps) {
   const [name, setName] = useState('');
-  const [rows, setRows] = useState<RecipeRow[]>([{ id: ++rowCounter, recipeId: '', quantity: '' }]);
+  const [rows, setRows] = useState<RecipeRow[]>([
+    { id: ++rowCounter, recipeId: '', quantity: '' },
+  ]);
+  const [complementRows, setComplementRows] = useState<ComplementRow[]>([]);
   const [profitRuleId, setProfitRuleId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -42,12 +61,23 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules,
           quantity: r.quantity.toString(),
         }));
 
-        if (rRows.length === 0) rRows.push({ id: ++rowCounter, recipeId: '', quantity: '' });
+        if (rRows.length === 0)
+          rRows.push({ id: ++rowCounter, recipeId: '', quantity: '' });
 
         setRows(rRows);
+
+        const cRows: ComplementRow[] = (initialData.complements ?? []).map(
+          (c) => ({
+            id: ++rowCounter,
+            complementId: c.complementId,
+            quantity: c.quantity.toString(),
+          }),
+        );
+        setComplementRows(cRows);
       } else {
         setName('');
         setRows([{ id: ++rowCounter, recipeId: '', quantity: '' }]);
+        setComplementRows([]);
         setProfitRuleId(profitRules[0]?._id ?? '');
       }
       setError('');
@@ -59,36 +89,120 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules,
 
   const getRecipe = (id: string) => recipes.find((r) => r._id === id);
   const getRule = (id: string) => profitRules.find((r) => r._id === id);
+  const getComplement = (id: string) => complements.find((c) => c._id === id);
+  // P1: only active complements are valid for NEW picks. Inactive ones already
+  // loaded from initialData remain visible in the row (handled by getComplement
+  // + the Inactivo badge below) but are excluded from the search options.
+  const activeComplements = complements.filter((c) => c.isActive);
 
-  const validRows = rows.filter((r) => r.recipeId && parseFloat(r.quantity) > 0);
+  const validRows = rows.filter(
+    (r) => r.recipeId && parseFloat(r.quantity) > 0,
+  );
+  // REQ-TRA-15: complement quantity is unit-aware. unidad requires >= 1, metro
+  // requires > 0. The complement document is resolved via getComplement.
+  const isComplementQuantityValid = (
+    q: string,
+    comp: Complement | undefined,
+  ): boolean => {
+    const n = parseFloat(q);
+    if (Number.isNaN(n)) return false;
+    if (!comp) return n > 0; // unknown unit: fall back to absolute floor
+    return comp.unit === 'metro' ? n > 0 : n >= 1;
+  };
+  // REQ-TRA-15: inline error message under each complement quantity input.
+  // Unit-aware copy in Spanish; only shows when the row has a selected
+  // complement AND a non-empty quantity that fails the rule.
+  const complementQuantityError = (
+    q: string,
+    comp: Complement | undefined,
+  ): string | null => {
+    if (!comp || q === '') return null;
+    if (isComplementQuantityValid(q, comp)) return null;
+    return comp.unit === 'metro'
+      ? 'La cantidad debe ser mayor a 0 metros'
+      : 'La cantidad debe ser al menos 1 unidad';
+  };
+  const validComplementRows = complementRows.filter(
+    (r) =>
+      r.complementId &&
+      isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
+  );
 
-  const totalCost = validRows.reduce((sum, row) => {
+  // Tray recipe cost uses recipe.costBase (REQ-TRA-2 / REQ-PRI-3).
+  const recipeCost = validRows.reduce((sum, row) => {
     const recipe = getRecipe(row.recipeId);
     if (!recipe) return sum;
     const q = parseFloat(row.quantity);
     if (recipe.sellUnit === 'kg' && recipe.yieldGrams > 0) {
-      return sum + (recipe.cost / recipe.yieldGrams) * q;
+      return sum + (recipe.costBase / recipe.yieldGrams) * q;
     }
-    return sum + (recipe.cost / (recipe.yieldUnits || 1)) * q;
+    return sum + (recipe.costBase / (recipe.yieldUnits || 1)) * q;
   }, 0);
+
+  const complementCost = validComplementRows.reduce((sum, row) => {
+    const c = getComplement(row.complementId);
+    if (!c) return sum;
+    return sum + c.costPerUnit * parseFloat(row.quantity);
+  }, 0);
+
+  // REQ-TRA-2: cost = sum(recipe.costBase × qty) + sum(tray.complements × qty).
+  const totalCost = recipeCost + complementCost;
 
   const selectedRule = getRule(profitRuleId);
   const sellingPrice = selectedRule
     ? totalCost * (1 + selectedRule.markupPercentage / 100)
     : 0;
 
-  const isValid = name.trim().length >= 2 && validRows.length > 0 && profitRuleId !== '';
+  const isValid =
+    name.trim().length >= 2 &&
+    validRows.length > 0 &&
+    profitRuleId !== '' &&
+    complementRows.every(
+      (r) =>
+        !r.complementId ||
+        isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
+    );
 
   const addRow = () => {
-    setRows((prev) => [...prev, { id: ++rowCounter, recipeId: '', quantity: '' }]);
+    setRows((prev) => [
+      ...prev,
+      { id: ++rowCounter, recipeId: '', quantity: '' },
+    ]);
   };
 
   const removeRow = (id: number) => {
     setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const updateRow = (id: number, field: 'recipeId' | 'quantity', value: string) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+  const updateRow = (
+    id: number,
+    field: 'recipeId' | 'quantity',
+    value: string,
+  ) => {
+    setRows((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)),
+    );
+  };
+
+  const addComplementRow = () => {
+    setComplementRows((prev) => [
+      ...prev,
+      { id: ++rowCounter, complementId: '', quantity: '' },
+    ]);
+  };
+
+  const removeComplementRow = (id: number) => {
+    setComplementRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const updateComplementRow = (
+    id: number,
+    field: 'complementId' | 'quantity',
+    value: string,
+  ) => {
+    setComplementRows((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)),
+    );
   };
 
   const handleSubmit = async () => {
@@ -108,11 +222,23 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules,
           recipeId: r.recipeId,
           quantity: parseFloat(r.quantity),
         })),
+        complements:
+          validComplementRows.length > 0
+            ? validComplementRows.map((r) => ({
+                complementId: r.complementId,
+                quantity: parseFloat(r.quantity),
+              }))
+            : undefined,
         profitRuleId,
       });
       onClose();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : initialData ? 'Error al actualizar la bandeja.' : 'Error al crear la bandeja.';
+      const msg =
+        e instanceof Error
+          ? e.message
+          : initialData
+            ? 'Error al actualizar la bandeja.'
+            : 'Error al crear la bandeja.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -120,8 +246,18 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules,
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={initialData ? "Editar Bandeja" : "Nueva Bandeja"}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialData ? 'Editar Bandeja' : 'Nueva Bandeja'}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-md)',
+        }}
+      >
         {/* Name */}
         <div>
           <label style={labelStyle}>Nombre de la bandeja</label>
@@ -137,21 +273,39 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules,
         {/* Recipes */}
         <div>
           <label style={labelStyle}>Recetas</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-sm)',
+            }}
+          >
             {rows.map((row) => {
               const recipe = getRecipe(row.recipeId);
               const qNum = parseFloat(row.quantity);
               let rowCost: number | null = null;
               if (recipe && qNum > 0) {
+                // REQ-TRA-2 / REQ-PRI-3: tray recipe cost uses recipe.costBase.
                 if (recipe.sellUnit === 'kg' && recipe.yieldGrams > 0) {
-                  rowCost = (recipe.cost / recipe.yieldGrams) * qNum;
+                  rowCost = (recipe.costBase / recipe.yieldGrams) * qNum;
                 } else {
-                  rowCost = (recipe.cost / (recipe.yieldUnits || 1)) * qNum;
+                  rowCost = (recipe.costBase / (recipe.yieldUnits || 1)) * qNum;
                 }
               }
-              const unitLabel = recipe ? (recipe.sellUnit === 'kg' ? 'g' : 'u.') : 'u.';
+              const unitLabel = recipe
+                ? recipe.sellUnit === 'kg'
+                  ? 'g'
+                  : 'u.'
+                : 'u.';
               return (
-                <div key={row.id} style={{ display: 'flex', gap: 'var(--space-xs)', alignItems: 'center' }}>
+                <div
+                  key={row.id}
+                  style={{
+                    display: 'flex',
+                    gap: 'var(--space-xs)',
+                    alignItems: 'center',
+                  }}
+                >
                   <SearchableSelect
                     options={recipes.map((r) => ({
                       value: r._id,
@@ -166,28 +320,290 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules,
                     <input
                       type="number"
                       value={row.quantity}
-                      onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
+                      onChange={(e) =>
+                        updateRow(row.id, 'quantity', e.target.value)
+                      }
                       placeholder="0"
                       min="0"
                       step="1"
-                      style={{ ...inputStyle, width: '100%', paddingRight: '28px', boxSizing: 'border-box' }}
+                      style={{
+                        ...inputStyle,
+                        width: '100%',
+                        paddingRight: '28px',
+                        boxSizing: 'border-box',
+                      }}
                     />
-                    <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{unitLabel}</span>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        right: 8,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontFamily: 'var(--font-body)',
+                        fontSize: '0.75rem',
+                        color: 'var(--color-text-secondary)',
+                      }}
+                    >
+                      {unitLabel}
+                    </span>
                   </div>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--color-text-secondary)', minWidth: '60px', textAlign: 'right' }}>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '0.75rem',
+                      color: 'var(--color-text-secondary)',
+                      minWidth: '60px',
+                      textAlign: 'right',
+                    }}
+                  >
                     {rowCost !== null ? fmt(rowCost) : ''}
                   </span>
-                  <button onClick={() => removeRow(row.id)} disabled={rows.length === 1} style={{ ...iconBtnStyle, opacity: rows.length === 1 ? 0.3 : 1 }}>
+                  <button
+                    onClick={() => removeRow(row.id)}
+                    disabled={rows.length === 1}
+                    style={{
+                      ...iconBtnStyle,
+                      opacity: rows.length === 1 ? 0.3 : 1,
+                    }}
+                  >
                     <MdClose size={16} />
                   </button>
                 </div>
               );
             })}
           </div>
-          <button onClick={addRow} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginTop: 'var(--space-sm)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-primary)', padding: 0, fontWeight: 600 }}>
+          <button
+            onClick={addRow}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-xs)',
+              marginTop: 'var(--space-sm)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.85rem',
+              color: 'var(--color-primary)',
+              padding: 0,
+              fontWeight: 600,
+            }}
+          >
             <MdAdd size={18} /> Agregar receta
           </button>
         </div>
+
+        {/* Complementos section (parallel to Recetas) */}
+        {complements.length > 0 && (
+          <div>
+            <label style={labelStyle}>Complementos</label>
+            <p
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.7rem',
+                color: 'var(--color-text-secondary)',
+                margin: '0 0 var(--space-sm)',
+              }}
+            >
+              Packaging y decoración de la bandeja.
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-sm)',
+              }}
+            >
+              {complementRows.map((row) => {
+                const comp = getComplement(row.complementId);
+                const qNum = parseFloat(row.quantity);
+                const qPassesRule = isComplementQuantityValid(
+                  row.quantity,
+                  comp,
+                );
+                const rowCost =
+                  comp && qPassesRule ? comp.costPerUnit * qNum : null;
+                // REQ-TRA-15: inline error text (Spanish, unit-aware) under
+                // the quantity input. null when the row is empty or valid.
+                const qError = complementQuantityError(row.quantity, comp);
+                // P2: dynamic step/min driven by the unit (REQ-TRA-15).
+                // metro uses 0.1 (granular enough to allow 0.2); unidad uses 1.
+                const stepValue = comp?.unit === 'metro' ? '0.1' : '1';
+                const minValue = comp?.unit === 'metro' ? '0.1' : '1';
+                const unitLabel = comp ? comp.unit : 'u.';
+                return (
+                  <div
+                    key={row.id}
+                    style={{
+                      display: 'flex',
+                      gap: 'var(--space-xs)',
+                      alignItems: 'center',
+                      opacity: comp && !comp.isActive ? 0.7 : 1,
+                    }}
+                  >
+                    {/*
+                     * P1: only active complements appear in the SearchableSelect
+                     * options for new picks. Inactive complements already in the
+                     * form's `complements[]` (from initialData) are rendered
+                     * inline as a static label with an "Inactivo" badge so they
+                     * remain visible.
+                     */}
+                    {comp && !comp.isActive ? (
+                      <div
+                        style={{
+                          flex: 2,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--space-xs)',
+                          padding: 'var(--space-xs) var(--space-sm)',
+                          border: '1.5px solid rgba(218, 193, 184, 0.4)',
+                          borderRadius: 'var(--radius-sm)',
+                          minHeight: '36px',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.9rem',
+                            color: 'var(--color-text-primary)',
+                            flex: 1,
+                          }}
+                        >
+                          {comp.name} ({comp.unit})
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.6rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            background: 'var(--color-warning)',
+                            color: 'var(--color-on-primary)',
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-full)',
+                          }}
+                        >
+                          Inactivo
+                        </span>
+                      </div>
+                    ) : (
+                      <SearchableSelect
+                        options={activeComplements.map((c) => ({
+                          value: c._id,
+                          label: `${c.name} (${c.unit})`,
+                        }))}
+                        value={row.complementId}
+                        onChange={(val) =>
+                          updateComplementRow(row.id, 'complementId', val)
+                        }
+                        placeholder="Complemento..."
+                        style={{ flex: 2 }}
+                      />
+                    )}
+                    <div
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                      }}
+                    >
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="number"
+                          value={row.quantity}
+                          onChange={(e) =>
+                            updateComplementRow(
+                              row.id,
+                              'quantity',
+                              e.target.value,
+                            )
+                          }
+                          placeholder="0"
+                          min={minValue}
+                          step={stepValue}
+                          style={{
+                            ...inputStyle,
+                            width: '100%',
+                            paddingRight: '28px',
+                            boxSizing: 'border-box',
+                            ...(qError
+                              ? { borderColor: 'var(--color-primary)' }
+                              : {}),
+                          }}
+                          aria-invalid={qError ? 'true' : 'false'}
+                        />
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: 8,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.75rem',
+                            color: 'var(--color-text-secondary)',
+                          }}
+                        >
+                          {unitLabel}
+                        </span>
+                      </div>
+                      {qError && (
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.7rem',
+                            color: 'var(--color-primary)',
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {qError}
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: '0.75rem',
+                        color: 'var(--color-text-secondary)',
+                        minWidth: '60px',
+                        textAlign: 'right',
+                      }}
+                    >
+                      {rowCost !== null ? fmt(rowCost) : ''}
+                    </span>
+                    <button
+                      onClick={() => removeComplementRow(row.id)}
+                      style={iconBtnStyle}
+                    >
+                      <MdClose size={16} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              onClick={addComplementRow}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-xs)',
+                marginTop: 'var(--space-sm)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.85rem',
+                color: 'var(--color-primary)',
+                padding: 0,
+                fontWeight: 600,
+              }}
+            >
+              <MdAdd size={18} /> Agregar complemento
+            </button>
+          </div>
+        )}
 
         {/* Profit rule */}
         <div>
@@ -199,37 +615,95 @@ export function TrayFormModal({ isOpen, onClose, onSubmit, recipes, profitRules,
           >
             <option value="">Seleccioná un markup...</option>
             {profitRules.map((r) => (
-              <option key={r._id} value={r._id}>{r.name} — {r.markupPercentage}%</option>
+              <option key={r._id} value={r._id}>
+                {r.name} — {r.markupPercentage}%
+              </option>
             ))}
           </select>
         </div>
 
         {/* Preview */}
         {validRows.length > 0 && profitRuleId && (
-          <div style={{ background: '#f8f4db', borderRadius: 'var(--radius-sm)', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+          <div
+            style={{
+              background: '#f8f4db',
+              borderRadius: 'var(--radius-sm)',
+              padding: 'var(--space-md)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.8rem',
+                color: 'var(--color-text-secondary)',
+              }}
+            >
               Costo de producción: <strong>{fmt(totalCost)}</strong>
             </span>
             {selectedRule && (
-              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                Markup aplicado: <strong>{selectedRule.name} ({selectedRule.markupPercentage}%)</strong>
+              <span
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.8rem',
+                  color: 'var(--color-text-secondary)',
+                }}
+              >
+                Markup aplicado:{' '}
+                <strong>
+                  {selectedRule.name} ({selectedRule.markupPercentage}%)
+                </strong>
               </span>
             )}
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 700, color: 'var(--color-primary)' }}>
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '1rem',
+                fontWeight: 700,
+                color: 'var(--color-primary)',
+              }}
+            >
               Precio de venta: {fmt(sellingPrice)}
             </span>
           </div>
         )}
 
         {error && (
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-error)', margin: 0 }}>{error}</p>
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.85rem',
+              color: 'var(--color-error)',
+              margin: 0,
+            }}
+          >
+            {error}
+          </p>
         )}
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 'var(--space-md)', paddingTop: 'var(--space-xs)' }}>
-          <button onClick={onClose} disabled={loading} style={cancelBtnStyle}>Cancelar</button>
-          <button onClick={handleSubmit} disabled={!isValid || loading} style={submitBtnStyle(!isValid || loading)}>
-            {loading ? 'Guardando...' : initialData ? 'Guardar Cambios' : 'Crear Bandeja'}
+        <div
+          style={{
+            display: 'flex',
+            gap: 'var(--space-md)',
+            paddingTop: 'var(--space-xs)',
+          }}
+        >
+          <button onClick={onClose} disabled={loading} style={cancelBtnStyle}>
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!isValid || loading}
+            style={submitBtnStyle(!isValid || loading)}
+          >
+            {loading
+              ? 'Guardando...'
+              : initialData
+                ? 'Guardar Cambios'
+                : 'Crear Bandeja'}
           </button>
         </div>
       </div>
