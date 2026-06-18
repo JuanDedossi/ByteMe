@@ -122,9 +122,19 @@ export function RecipeFormModal({
 
   const validRows = rows.filter((r) => r.ingredientId && parseFloat(r.quantity) > 0);
   const validSubRecipeRows = subRecipeRows.filter((r) => r.recipeId && parseFloat(r.quantity) > 0);
-  // REQ-REC-17: complement quantity must be >= 1.
+  // REQ-REC-17: complement quantity is unit-aware. unidad requires >= 1, metro
+  // requires > 0. The complement document is resolved via getComplement (the
+  // form keeps inactive entries visible, so `comp` is not guaranteed to exist
+  // for every row — we treat unknown as "valid for filter" and rely on the
+  // submission-time check below for the actual gate).
+  const isComplementQuantityValid = (q: string, comp: Complement | undefined): boolean => {
+    const n = parseFloat(q);
+    if (Number.isNaN(n)) return false;
+    if (!comp) return n > 0; // unknown unit: fall back to absolute floor
+    return comp.unit === 'metro' ? n > 0 : n >= 1;
+  };
   const validComplementRows = complementRows.filter(
-    (r) => r.complementId && parseFloat(r.quantity) >= 1,
+    (r) => r.complementId && isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
   );
 
   const ingredientCost = validRows.reduce((sum, row) => {
@@ -171,9 +181,9 @@ export function RecipeFormModal({
 
   const hasItems = validRows.length > 0 || validSubRecipeRows.length > 0;
 
-  // Check that all complement rows are valid (quantity >= 1).
+  // Check that all complement rows satisfy the unit-aware rule (REQ-REC-17).
   const allComplementQuantitiesValid = complementRows.every(
-    (r) => !r.complementId || parseFloat(r.quantity) >= 1,
+    (r) => !r.complementId || isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
   );
 
   const isValid =
@@ -449,12 +459,14 @@ export function RecipeFormModal({
                 const comp = getComplement(row.complementId);
                 const qNum = parseFloat(row.quantity);
                 // Row cost preview uses the loaded complement's costPerUnit.
-                // Inactive complements still contribute (REQ-REC-16).
-                const rowCost =
-                  comp && qNum >= 1 ? comp.costPerUnit * qNum : null;
-                // P2: dynamic step/min driven by the unit.
-                const stepValue = comp?.unit === 'metro' ? '0.5' : '1';
-                const minValue = comp?.unit === 'metro' ? '0.5' : '1';
+                // Inactive complements still contribute (REQ-REC-16). Preview
+                // is unit-aware: only show when quantity passes the rule.
+                const qPassesRule = isComplementQuantityValid(row.quantity, comp);
+                const rowCost = comp && qPassesRule ? comp.costPerUnit * qNum : null;
+                // P2: dynamic step/min driven by the unit (REQ-REC-17).
+                // metro uses 0.1 (granular enough to allow 0.2); unidad uses 1.
+                const stepValue = comp?.unit === 'metro' ? '0.1' : '1';
+                const minValue = comp?.unit === 'metro' ? '0.1' : '1';
                 const unitLabel = comp ? comp.unit : 'u.';
                 return (
                   <div

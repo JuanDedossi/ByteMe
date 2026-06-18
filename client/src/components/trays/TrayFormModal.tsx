@@ -91,9 +91,16 @@ export function TrayFormModal({
   const activeComplements = complements.filter((c) => c.isActive);
 
   const validRows = rows.filter((r) => r.recipeId && parseFloat(r.quantity) > 0);
-  // REQ-TRA-15: complement quantity must be >= 1.
+  // REQ-TRA-15: complement quantity is unit-aware. unidad requires >= 1, metro
+  // requires > 0. The complement document is resolved via getComplement.
+  const isComplementQuantityValid = (q: string, comp: Complement | undefined): boolean => {
+    const n = parseFloat(q);
+    if (Number.isNaN(n)) return false;
+    if (!comp) return n > 0; // unknown unit: fall back to absolute floor
+    return comp.unit === 'metro' ? n > 0 : n >= 1;
+  };
   const validComplementRows = complementRows.filter(
-    (r) => r.complementId && parseFloat(r.quantity) >= 1,
+    (r) => r.complementId && isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
   );
 
   // Tray recipe cost uses recipe.costBase (REQ-TRA-2 / REQ-PRI-3).
@@ -125,7 +132,9 @@ export function TrayFormModal({
     name.trim().length >= 2 &&
     validRows.length > 0 &&
     profitRuleId !== '' &&
-    complementRows.every((r) => !r.complementId || parseFloat(r.quantity) >= 1);
+    complementRows.every(
+      (r) => !r.complementId || isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
+    );
 
   const addRow = () => {
     setRows((prev) => [...prev, { id: ++rowCounter, recipeId: '', quantity: '' }]);
@@ -274,11 +283,12 @@ export function TrayFormModal({
               {complementRows.map((row) => {
                 const comp = getComplement(row.complementId);
                 const qNum = parseFloat(row.quantity);
-                const rowCost =
-                  comp && qNum >= 1 ? comp.costPerUnit * qNum : null;
-                // P2: dynamic step/min driven by the unit.
-                const stepValue = comp?.unit === 'metro' ? '0.5' : '1';
-                const minValue = comp?.unit === 'metro' ? '0.5' : '1';
+                const qPassesRule = isComplementQuantityValid(row.quantity, comp);
+                const rowCost = comp && qPassesRule ? comp.costPerUnit * qNum : null;
+                // P2: dynamic step/min driven by the unit (REQ-TRA-15).
+                // metro uses 0.1 (granular enough to allow 0.2); unidad uses 1.
+                const stepValue = comp?.unit === 'metro' ? '0.1' : '1';
+                const minValue = comp?.unit === 'metro' ? '0.1' : '1';
                 const unitLabel = comp ? comp.unit : 'u.';
                 return (
                   <div
