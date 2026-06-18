@@ -133,6 +133,16 @@ export function RecipeFormModal({
     if (!comp) return n > 0; // unknown unit: fall back to absolute floor
     return comp.unit === 'metro' ? n > 0 : n >= 1;
   };
+  // REQ-REC-17: inline error message under each complement quantity input.
+  // Unit-aware copy in Spanish; only shows when the row has a selected
+  // complement AND a non-empty quantity that fails the rule.
+  const complementQuantityError = (q: string, comp: Complement | undefined): string | null => {
+    if (!comp || q === '') return null;
+    if (isComplementQuantityValid(q, comp)) return null;
+    return comp.unit === 'metro'
+      ? 'La cantidad debe ser mayor a 0 metros'
+      : 'La cantidad debe ser al menos 1 unidad';
+  };
   const validComplementRows = complementRows.filter(
     (r) => r.complementId && isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
   );
@@ -463,6 +473,9 @@ export function RecipeFormModal({
                 // is unit-aware: only show when quantity passes the rule.
                 const qPassesRule = isComplementQuantityValid(row.quantity, comp);
                 const rowCost = comp && qPassesRule ? comp.costPerUnit * qNum : null;
+                // REQ-REC-17: inline error text (Spanish, unit-aware) under
+                // the quantity input. null when the row is empty or valid.
+                const qError = complementQuantityError(row.quantity, comp);
                 // P2: dynamic step/min driven by the unit (REQ-REC-17).
                 // metro uses 0.1 (granular enough to allow 0.2); unidad uses 1.
                 const stepValue = comp?.unit === 'metro' ? '0.1' : '1';
@@ -538,29 +551,50 @@ export function RecipeFormModal({
                         style={{ flex: 2 }}
                       />
                     )}
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <input
-                        type="number"
-                        value={row.quantity}
-                        onChange={(e) => updateComplementRow(row.id, 'quantity', e.target.value)}
-                        placeholder="0"
-                        min={minValue}
-                        step={stepValue}
-                        style={{ ...inputStyle, width: '100%', paddingRight: '28px', boxSizing: 'border-box' }}
-                      />
-                      <span
-                        style={{
-                          position: 'absolute',
-                          right: 8,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          fontFamily: 'var(--font-body)',
-                          fontSize: '0.75rem',
-                          color: 'var(--color-text-secondary)',
-                        }}
-                      >
-                        {unitLabel}
-                      </span>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="number"
+                          value={row.quantity}
+                          onChange={(e) => updateComplementRow(row.id, 'quantity', e.target.value)}
+                          placeholder="0"
+                          min={minValue}
+                          step={stepValue}
+                          style={{
+                            ...inputStyle,
+                            width: '100%',
+                            paddingRight: '28px',
+                            boxSizing: 'border-box',
+                            ...(qError ? { borderColor: 'var(--color-primary)' } : {}),
+                          }}
+                          aria-invalid={qError ? 'true' : 'false'}
+                        />
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: 8,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.75rem',
+                            color: 'var(--color-text-secondary)',
+                          }}
+                        >
+                          {unitLabel}
+                        </span>
+                      </div>
+                      {qError && (
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.7rem',
+                            color: 'var(--color-primary)',
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {qError}
+                        </span>
+                      )}
                     </div>
                     <span
                       style={{
