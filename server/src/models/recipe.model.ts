@@ -99,6 +99,8 @@ RecipeSchema.index({ 'complements.complementId': 1 });
 
 export function getRecipeModel(): mongoose.Model<RecipeDocument> {
   const db = mongoose.connection.useDb(getTenantDb(), { useCache: true });
-  return (db.models['Recipe'] as mongoose.Model<RecipeDocument>) ??
-    db.model<RecipeDocument>('Recipe', RecipeSchema);
+  return (
+    (db.models['Recipe'] as mongoose.Model<RecipeDocument>) ??
+    db.model<RecipeDocument>('Recipe', RecipeSchema)
+  );
 }

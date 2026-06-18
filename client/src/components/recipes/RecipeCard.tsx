@@ -297,18 +297,18 @@ export function RecipeCard({
           }}
         >
           <p
-              style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.7rem',
-                fontWeight: 600,
-                color: 'var(--color-text-secondary)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                margin: '0 0 var(--space-sm)',
-              }}
-            >
-              Ingredientes
-            </p>
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              color: 'var(--color-text-secondary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              margin: '0 0 var(--space-sm)',
+            }}
+          >
+            Ingredientes
+          </p>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -407,10 +407,12 @@ export function RecipeCard({
                         {c.complementUnit === 'metro'
                           ? ' m'
                           : c.complementUnit === 'unidad'
-                          ? ' u.'
-                          : ''}
+                            ? ' u.'
+                            : ''}
                       </td>
-                      <td style={tdStyle}>{c.cost !== undefined ? fmt(c.cost) : ''}</td>
+                      <td style={tdStyle}>
+                        {c.cost !== undefined ? fmt(c.cost) : ''}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -440,7 +442,8 @@ export function RecipeCard({
                     color: 'var(--color-text-secondary)',
                   }}
                 >
-                  Costo base (para usar en bandejas): <strong>{fmt(recipe.costBase)}</strong>
+                  Costo base (para usar en bandejas):{' '}
+                  <strong>{fmt(recipe.costBase)}</strong>
                 </span>
                 <span
                   style={{

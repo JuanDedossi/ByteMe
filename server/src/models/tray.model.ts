@@ -74,6 +74,8 @@ TraySchema.index({ 'complements.complementId': 1 });
 
 export function getTrayModel(): mongoose.Model<TrayDocument> {
   const db = mongoose.connection.useDb(getTenantDb(), { useCache: true });
-  return (db.models['Tray'] as mongoose.Model<TrayDocument>) ??
-    db.model<TrayDocument>('Tray', TraySchema);
+  return (
+    (db.models['Tray'] as mongoose.Model<TrayDocument>) ??
+    db.model<TrayDocument>('Tray', TraySchema)
+  );
 }

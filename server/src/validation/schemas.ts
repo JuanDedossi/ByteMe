@@ -30,12 +30,11 @@ export const CreateComplementSchema = z.object({
 
 export type CreateComplementInput = z.infer<typeof CreateComplementSchema>;
 
-export const UpdateComplementSchema = z
-  .object({
-    name: z.string().min(1).optional(),
-    unit: z.enum(['unidad', 'metro']).optional(),
-    costPerUnit: z.number().nonnegative().optional(),
-  });
+export const UpdateComplementSchema = z.object({
+  name: z.string().min(1).optional(),
+  unit: z.enum(['unidad', 'metro']).optional(),
+  costPerUnit: z.number().nonnegative().optional(),
+});
 
 export type UpdateComplementInput = z.infer<typeof UpdateComplementSchema>;
 
@@ -101,12 +100,14 @@ export type UpdateRecipePriceInput = z.infer<typeof UpdateRecipePriceSchema>;
 
 export const CreateTraySchema = z.object({
   name: z.string().min(1),
-  recipes: z.array(
-    z.object({
-      recipeId: z.string(),
-      quantity: z.number().nonnegative(),
-    }),
-  ).min(1),
+  recipes: z
+    .array(
+      z.object({
+        recipeId: z.string(),
+        quantity: z.number().nonnegative(),
+      }),
+    )
+    .min(1),
   complements: z.array(ComplementEntrySchema).optional(),
   profitRuleId: z.string(),
 });
@@ -127,13 +128,10 @@ export const UpdateTraySchema = z
     complements: z.array(ComplementEntrySchema).optional(),
     profitRuleId: z.string().optional(),
   })
-  .refine(
-    (data) => data.recipes === undefined || data.recipes.length > 0,
-    {
-      message: 'tray must have at least one recipe',
-      path: ['recipes'],
-    },
-  );
+  .refine((data) => data.recipes === undefined || data.recipes.length > 0, {
+    message: 'tray must have at least one recipe',
+    path: ['recipes'],
+  });
 
 export type UpdateTrayInput = z.infer<typeof UpdateTraySchema>;
 
@@ -171,8 +169,7 @@ const SaleItemSchema = z
   })
   .refine(
     (data) =>
-      (data.recipeId && !data.trayId) ||
-      (!data.recipeId && data.trayId),
+      (data.recipeId && !data.trayId) || (!data.recipeId && data.trayId),
     {
       message: 'item must reference either a recipe or a tray, not both',
     },
@@ -195,7 +192,10 @@ export type CreateProfitRuleInput = z.infer<typeof CreateProfitRuleSchema>;
 export const UpdateProfitRuleSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
-  markupPercentage: z.number().min(0, 'markupPercentage must be >= 0').optional(),
+  markupPercentage: z
+    .number()
+    .min(0, 'markupPercentage must be >= 0')
+    .optional(),
 });
 
 export type UpdateProfitRuleInput = z.infer<typeof UpdateProfitRuleSchema>;

@@ -2,7 +2,10 @@ import { Types, PipelineStage } from 'mongoose';
 import { getRecipeModel, RecipeDocument } from '../models/recipe.model';
 import { findIngredientsByIds } from './ingredients.service';
 import { findProfitRuleById } from './profit-rules.service';
-import { findComplementsByIds, validateComplementQuantities } from './complements.service';
+import {
+  findComplementsByIds,
+  validateComplementQuantities,
+} from './complements.service';
 import { roundCurrency } from '../utils/currency';
 import {
   calculateRecipeCost,
@@ -107,7 +110,11 @@ async function enrichRecipes(
     ...new Set(
       recipes.flatMap((r) =>
         r.ingredients
-          .filter((i) => ((i as any).type ?? 'ingredient') === 'ingredient' && i.ingredientId)
+          .filter(
+            (i) =>
+              ((i as any).type ?? 'ingredient') === 'ingredient' &&
+              i.ingredientId,
+          )
           .map((i) => i.ingredientId!.toString()),
       ),
     ),
@@ -134,9 +141,7 @@ async function enrichRecipes(
   ]);
 
   const ingredientMap = new Map(ingredients.map((i) => [i._id.toString(), i]));
-  const complementMap = new Map(
-    complements.map((c) => [c._id.toString(), c]),
-  );
+  const complementMap = new Map(complements.map((c) => [c._id.toString(), c]));
   const ruleMap = new Map(ruleResults.map((r) => [r._id.toString(), r]));
 
   const Recipe = getRecipeModel();
@@ -155,15 +160,21 @@ async function enrichRecipes(
       const subRecipeIds = [
         ...new Set(
           recipe.ingredients
-            .filter((i) => (i as any).type === 'subRecipe' && (i as any).recipeId)
+            .filter(
+              (i) => (i as any).type === 'subRecipe' && (i as any).recipeId,
+            )
             .map((i) => (i as any).recipeId.toString()),
         ),
       ];
 
       let subRecipeMap = new Map<string, EnrichedRecipe>();
       if (depth < MAX_SUB_RECIPE_DEPTH && subRecipeIds.length > 0) {
-        const notVisitedIds = subRecipeIds.filter((id) => !branchVisited.has(id));
-        const subRawRecipes = await Recipe.find({ _id: { $in: notVisitedIds } }).exec();
+        const notVisitedIds = subRecipeIds.filter(
+          (id) => !branchVisited.has(id),
+        );
+        const subRawRecipes = await Recipe.find({
+          _id: { $in: notVisitedIds },
+        }).exec();
         const enrichedSubs = await enrichRecipes(
           subRawRecipes as RecipeDocument[],
           depth + 1,
@@ -249,7 +260,8 @@ async function enrichRecipes(
       const sellUnit = recipe.sellUnit ?? 'unidad';
       const yieldGrams = recipe.yieldGrams ?? 0;
       const yieldUnits = (recipe as any).yieldUnits ?? 1;
-      const customSellingPrice: number | null = (recipe as any).customSellingPrice ?? null;
+      const customSellingPrice: number | null =
+        (recipe as any).customSellingPrice ?? null;
       const isSubRecipe = (recipe as any).isSubRecipe ?? false;
 
       let sellingPrice: number;
@@ -491,7 +503,9 @@ export async function updateRecipe(
         throw { status: 404, message: 'Uno o más complementos no existen' };
       }
       // REQ-CMP-7 / REQ-REC-17: unit-aware quantity validation.
-      const complementMap = new Map(foundComps.map((c) => [c._id.toString(), c]));
+      const complementMap = new Map(
+        foundComps.map((c) => [c._id.toString(), c]),
+      );
       validateComplementQuantities(complementItems, complementMap);
     }
     updates.complements = complementItems.map((c) => ({
@@ -506,7 +520,8 @@ export async function updateRecipe(
   if (dto.yieldGrams !== undefined) updates.yieldGrams = dto.yieldGrams;
   if (dto.yieldUnits !== undefined) updates.yieldUnits = dto.yieldUnits;
 
-  const effectiveSellUnit = (updates.sellUnit as string | undefined) ?? recipe.sellUnit;
+  const effectiveSellUnit =
+    (updates.sellUnit as string | undefined) ?? recipe.sellUnit;
   const effectiveYieldGrams =
     (updates.yieldGrams as number | undefined) ?? recipe.yieldGrams;
   validateKgYield(effectiveSellUnit, effectiveYieldGrams);
@@ -562,9 +577,7 @@ export async function deleteRecipe(id: string): Promise<void> {
   await Recipe.findByIdAndDelete(id).exec();
 }
 
-export async function toggleRecipeActive(
-  id: string,
-): Promise<EnrichedRecipe> {
+export async function toggleRecipeActive(id: string): Promise<EnrichedRecipe> {
   const Recipe = getRecipeModel();
   const recipe = (await Recipe.findById(id).exec()) as RecipeDocument | null;
   if (!recipe) throw { status: 404, message: 'Receta no encontrada' };

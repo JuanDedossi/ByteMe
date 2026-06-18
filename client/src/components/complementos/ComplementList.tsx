@@ -8,9 +8,20 @@ interface ComplementListProps {
   onToggleActive: (id: string) => void;
 }
 
-export function ComplementList({ complements, onEdit, onDelete, onToggleActive }: ComplementListProps) {
+export function ComplementList({
+  complements,
+  onEdit,
+  onDelete,
+  onToggleActive,
+}: ComplementListProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-sm)',
+      }}
+    >
       {complements.map((complement) => (
         <ComplementRow
           key={complement._id}

@@ -37,7 +37,9 @@ export function ComplementosPage() {
       setTotalPages(res.totalPages);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } };
-      setErrorMessage(err?.response?.data?.message || 'Error al cargar los complementos');
+      setErrorMessage(
+        err?.response?.data?.message || 'Error al cargar los complementos',
+      );
     } finally {
       setLoading(false);
     }
@@ -53,7 +55,9 @@ export function ComplementosPage() {
     setPage(1);
   };
 
-  const handleCreate = async (payload: CreateComplementPayload | UpdateComplementPayload) => {
+  const handleCreate = async (
+    payload: CreateComplementPayload | UpdateComplementPayload,
+  ) => {
     await complementsService.create(payload as CreateComplementPayload);
     setCreateOpen(false);
     setErrorMessage('');
@@ -75,13 +79,20 @@ export function ComplementosPage() {
       await complementsService.delete(id);
       await fetchComplements();
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      const err = e as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
       const apiMessage = err?.response?.data?.message;
       // 409 from backend = delete protection (used by recipes/trays).
       if (apiMessage) {
-        setErrorMessage(`${apiMessage}. Si no lo usás más, desactivá el complemento.`);
+        setErrorMessage(
+          `${apiMessage}. Si no lo usás más, desactivá el complemento.`,
+        );
       } else {
-        setErrorMessage('No se pudo eliminar el complemento. Intentá de nuevo.');
+        setErrorMessage(
+          'No se pudo eliminar el complemento. Intentá de nuevo.',
+        );
       }
     }
   };
@@ -93,7 +104,9 @@ export function ComplementosPage() {
       await fetchComplements();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } };
-      setErrorMessage(err?.response?.data?.message || 'No se pudo cambiar el estado');
+      setErrorMessage(
+        err?.response?.data?.message || 'No se pudo cambiar el estado',
+      );
     }
   };
 
@@ -230,7 +243,11 @@ export function ComplementosPage() {
           />
         )}
 
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* FAB */}

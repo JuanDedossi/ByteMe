@@ -1,5 +1,9 @@
 import api from './api';
-import type { Complement, CreateComplementPayload, UpdateComplementPayload } from '../types/complement.types';
+import type {
+  Complement,
+  CreateComplementPayload,
+  UpdateComplementPayload,
+} from '../types/complement.types';
 
 export interface ComplementsListResponse {
   success: boolean;
@@ -17,7 +21,9 @@ export interface ComplementsListParams {
 }
 
 export const complementsService = {
-  async list(params: ComplementsListParams = {}): Promise<ComplementsListResponse> {
+  async list(
+    params: ComplementsListParams = {},
+  ): Promise<ComplementsListResponse> {
     const { data } = await api.get('/complements', { params });
     return data;
   },
@@ -32,7 +38,10 @@ export const complementsService = {
     return data.data;
   },
 
-  async update(id: string, payload: UpdateComplementPayload): Promise<Complement> {
+  async update(
+    id: string,
+    payload: UpdateComplementPayload,
+  ): Promise<Complement> {
     const { data } = await api.patch(`/complements/${id}`, payload);
     return data.data;
   },

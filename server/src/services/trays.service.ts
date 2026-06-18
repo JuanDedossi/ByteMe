@@ -3,7 +3,10 @@ import { getTrayModel, TrayDocument } from '../models/tray.model';
 import { getRecipeModel } from '../models/recipe.model';
 import { findProfitRuleById } from './profit-rules.service';
 import { findRecipeById } from './recipes.service';
-import { findComplementsByIds, validateComplementQuantities } from './complements.service';
+import {
+  findComplementsByIds,
+  validateComplementQuantities,
+} from './complements.service';
 import { roundCurrency } from '../utils/currency';
 import {
   calculateTrayCost,
@@ -67,11 +70,11 @@ export interface UpdateTrayPriceInput {
 }
 
 async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
-  const recipeIds = [...new Set(tray.recipes.map((r) => r.recipeId.toString()))];
+  const recipeIds = [
+    ...new Set(tray.recipes.map((r) => r.recipeId.toString())),
+  ];
   const complementIds = [
-    ...new Set(
-      (tray.complements ?? []).map((c) => c.complementId.toString()),
-    ),
+    ...new Set((tray.complements ?? []).map((c) => c.complementId.toString())),
   ];
 
   const [enrichedRecipes, complements] = await Promise.all([
@@ -85,9 +88,7 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
   const enrichedRecipeMap = new Map(
     enrichedRecipes.map((r) => [r._id.toString(), r]),
   );
-  const complementMap = new Map(
-    complements.map((c) => [c._id.toString(), c]),
-  );
+  const complementMap = new Map(complements.map((c) => [c._id.toString(), c]));
 
   const subCostContext = new Map<string, SubRecipeCostContext>();
   for (const [id, r] of enrichedRecipeMap) {
@@ -124,19 +125,19 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
     };
   });
 
-  const enrichedComplements: EnrichedTrayComplement[] = (tray.complements ?? []).map(
-    (c) => {
-      const comp = complementMap.get(c.complementId.toString());
-      const cost = comp ? comp.costPerUnit * c.quantity : 0;
-      return {
-        complementId: c.complementId.toString(),
-        complementName: comp?.name ?? 'Complemento desconocido',
-        unit: comp?.unit ?? 'unidad',
-        quantity: c.quantity,
-        cost,
-      };
-    },
-  );
+  const enrichedComplements: EnrichedTrayComplement[] = (
+    tray.complements ?? []
+  ).map((c) => {
+    const comp = complementMap.get(c.complementId.toString());
+    const cost = comp ? comp.costPerUnit * c.quantity : 0;
+    return {
+      complementId: c.complementId.toString(),
+      complementName: comp?.name ?? 'Complemento desconocido',
+      unit: comp?.unit ?? 'unidad',
+      quantity: c.quantity,
+      cost,
+    };
+  });
 
   const rule = await findProfitRuleById(tray.profitRuleId.toString());
   const markupPercentage = rule.markupPercentage;
@@ -161,9 +162,7 @@ async function enrichTrayDoc(tray: TrayDocument): Promise<EnrichedTray> {
     markupPercentage,
     sellingPrice: roundCurrency(sellingPrice),
     customSellingPrice:
-      customSellingPrice !== null
-        ? roundCurrency(customSellingPrice)
-        : null,
+      customSellingPrice !== null ? roundCurrency(customSellingPrice) : null,
   };
 }
 
@@ -175,7 +174,9 @@ export async function findAllTrays(
   hasStock?: boolean,
 ): Promise<{ data: EnrichedTray[]; total: number }> {
   const Tray = getTrayModel();
-  const query: Record<string, unknown> = search ? { name: { $regex: search, $options: 'i' } } : {};
+  const query: Record<string, unknown> = search
+    ? { name: { $regex: search, $options: 'i' } }
+    : {};
   if (hasStock) query.stock = { $gt: 0 };
 
   const total = await Tray.countDocuments(query);
@@ -322,7 +323,9 @@ export async function updateTray(
         throw { status: 404, message: 'Uno o más complementos no existen' };
       }
       // REQ-CMP-7 / REQ-TRA-15: unit-aware quantity validation.
-      const complementMap = new Map(foundComps.map((c) => [c._id.toString(), c]));
+      const complementMap = new Map(
+        foundComps.map((c) => [c._id.toString(), c]),
+      );
       validateComplementQuantities(complementItems, complementMap);
     }
     updates.complements = complementItems.map((c) => ({

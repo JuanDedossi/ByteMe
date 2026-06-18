@@ -8,7 +8,11 @@ import { recipesService } from '../services/recipes.service';
 import { ingredientsService } from '../services/ingredients.service';
 import { profitRulesService } from '../services/profit-rules.service';
 import { complementsService } from '../services/complements.service';
-import type { Recipe, CreateRecipePayload, UpdateRecipePayload } from '../types/recipe.types';
+import type {
+  Recipe,
+  CreateRecipePayload,
+  UpdateRecipePayload,
+} from '../types/recipe.types';
 import type { Ingredient } from '../types/ingredient.types';
 import type { ProfitRule } from '../types/profit-rule.types';
 import type { Complement } from '../types/complement.types';
@@ -35,7 +39,11 @@ export function RecipesPage() {
   const fetchRecipes = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await recipesService.list({ page, limit, search: search || undefined });
+      const res = await recipesService.list({
+        page,
+        limit,
+        search: search || undefined,
+      });
       setRecipes(res.data);
       setTotal(res.total);
       setTotalPages(res.totalPages);
@@ -77,7 +85,10 @@ export function RecipesPage() {
     await fetchRecipes();
     // Refresh sub-recipes list if the new recipe is a sub-recipe
     if (payload.isSubRecipe) {
-      const subRes = await recipesService.list({ isSubRecipe: true, limit: 200 });
+      const subRes = await recipesService.list({
+        isSubRecipe: true,
+        limit: 200,
+      });
       setSubRecipes(subRes.data);
     }
   };
@@ -85,10 +96,15 @@ export function RecipesPage() {
   const handleEditSubmit = async (payload: UpdateRecipePayload) => {
     if (!editingRecipe) return;
     const updated = await recipesService.update(editingRecipe._id, payload);
-    setRecipes((prev) => prev.map((r) => (r._id === editingRecipe._id ? updated : r)));
+    setRecipes((prev) =>
+      prev.map((r) => (r._id === editingRecipe._id ? updated : r)),
+    );
     setEditingRecipe(null);
     if (payload.isSubRecipe !== undefined || editingRecipe.isSubRecipe) {
-      const subRes = await recipesService.list({ isSubRecipe: true, limit: 200 });
+      const subRes = await recipesService.list({
+        isSubRecipe: true,
+        limit: 200,
+      });
       setSubRecipes(subRes.data);
     }
   };
@@ -126,7 +142,11 @@ export function RecipesPage() {
         >
           Recetas
         </h1>
-        <SearchBar value={search} onChange={handleSearch} placeholder="Buscar receta..." />
+        <SearchBar
+          value={search}
+          onChange={handleSearch}
+          placeholder="Buscar receta..."
+        />
       </div>
 
       {/* Content */}
@@ -146,7 +166,14 @@ export function RecipesPage() {
         )}
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: 'var(--space-2xl)',
+              color: 'var(--color-text-secondary)',
+              fontFamily: 'var(--font-body)',
+            }}
+          >
             Cargando...
           </div>
         ) : recipes.length === 0 ? (
@@ -163,7 +190,13 @@ export function RecipesPage() {
               : 'Aún no hay recetas. Creá la primera con el botón de abajo.'}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-sm)',
+            }}
+          >
             {recipes.map((recipe) => (
               <RecipeCard
                 key={recipe._id}
@@ -177,7 +210,11 @@ export function RecipesPage() {
           </div>
         )}
 
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* FAB */}

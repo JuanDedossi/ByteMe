@@ -157,9 +157,9 @@ export async function updateComplement(
   }
 
   const Complement = getComplementModel();
-  const existing = (await Complement.findById(id).exec()) as
-    | ComplementDocument
-    | null;
+  const existing = (await Complement.findById(
+    id,
+  ).exec()) as ComplementDocument | null;
   if (!existing) {
     throw { status: 404, message: 'Complemento no encontrado' };
   }
@@ -202,9 +202,9 @@ export async function toggleComplementActive(
   id: string,
 ): Promise<ComplementDocument> {
   const Complement = getComplementModel();
-  const existing = (await Complement.findById(id).exec()) as
-    | ComplementDocument
-    | null;
+  const existing = (await Complement.findById(
+    id,
+  ).exec()) as ComplementDocument | null;
   if (!existing) {
     throw { status: 404, message: 'Complemento no encontrado' };
   }

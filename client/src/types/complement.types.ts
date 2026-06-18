@@ -5,7 +5,10 @@
 
 export type ComplementUnit = 'unidad' | 'metro';
 
-export const COMPLEMENT_UNITS: readonly ComplementUnit[] = ['unidad', 'metro'] as const;
+export const COMPLEMENT_UNITS: readonly ComplementUnit[] = [
+  'unidad',
+  'metro',
+] as const;
 
 export interface Complement {
   _id: string;

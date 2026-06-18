@@ -11,7 +11,12 @@ interface ComplementRowProps {
 const formatCurrency = (value: number) =>
   `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function ComplementRow({ complement, onEdit, onDelete, onToggleActive }: ComplementRowProps) {
+export function ComplementRow({
+  complement,
+  onEdit,
+  onDelete,
+  onToggleActive,
+}: ComplementRowProps) {
   // P4 foundation: disambiguating label format
   const label = `${complement.name} (${complement.unit})`;
 
@@ -29,8 +34,22 @@ export function ComplementRow({ complement, onEdit, onDelete, onToggleActive }: 
       }}
     >
       {/* Header row: name + actions */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-sm)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 'var(--space-sm)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-sm)',
+            flexWrap: 'wrap',
+          }}
+        >
           <span
             style={{
               fontFamily: 'var(--font-body)',
@@ -63,11 +82,23 @@ export function ComplementRow({ complement, onEdit, onDelete, onToggleActive }: 
         <div style={{ display: 'flex', gap: 'var(--space-xs)', flexShrink: 0 }}>
           <button
             onClick={() => onToggleActive(complement._id)}
-            style={iconBtnStyle(complement.isActive ? 'var(--color-success)' : 'var(--color-text-secondary)')}
+            style={iconBtnStyle(
+              complement.isActive
+                ? 'var(--color-success)'
+                : 'var(--color-text-secondary)',
+            )}
             title={complement.isActive ? 'Desactivar' : 'Activar'}
-            aria-label={complement.isActive ? 'Desactivar complemento' : 'Activar complemento'}
+            aria-label={
+              complement.isActive
+                ? 'Desactivar complemento'
+                : 'Activar complemento'
+            }
           >
-            {complement.isActive ? <MdToggleOn size={20} /> : <MdToggleOff size={20} />}
+            {complement.isActive ? (
+              <MdToggleOn size={20} />
+            ) : (
+              <MdToggleOff size={20} />
+            )}
           </button>
           <button
             onClick={() => onEdit(complement)}
@@ -89,7 +120,14 @@ export function ComplementRow({ complement, onEdit, onDelete, onToggleActive }: 
       </div>
 
       {/* Cost row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-lg)', flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-lg)',
+          flexWrap: 'wrap',
+        }}
+      >
         <div>
           <span style={labelStyle}>
             Costo por {complement.unit === 'metro' ? 'metro' : 'unidad'}

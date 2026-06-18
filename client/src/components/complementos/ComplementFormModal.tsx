@@ -11,7 +11,9 @@ import { COMPLEMENT_UNITS } from '../../types/complement.types';
 interface ComplementFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (payload: CreateComplementPayload | UpdateComplementPayload) => Promise<void>;
+  onSubmit: (
+    payload: CreateComplementPayload | UpdateComplementPayload,
+  ) => Promise<void>;
   initialData?: Complement | null;
 }
 
@@ -55,8 +57,7 @@ export function ComplementFormModal({
   }, [isOpen, initialData]);
 
   const costNum = parseFloat(cost);
-  const isValid =
-    name.trim().length > 0 && !isNaN(costNum) && costNum >= 0;
+  const isValid = name.trim().length > 0 && !isNaN(costNum) && costNum >= 0;
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -86,8 +87,18 @@ export function ComplementFormModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title={isEdit ? 'Editar Complemento' : 'Nuevo Complemento'}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={isEdit ? 'Editar Complemento' : 'Nuevo Complemento'}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-md)',
+        }}
+      >
         {/* Name */}
         <div>
           <label style={labelStyle}>Nombre</label>
@@ -120,7 +131,10 @@ export function ComplementFormModal({
                   fontSize: '0.85rem',
                   fontWeight: 600,
                   background: unit === u ? 'var(--color-primary)' : '#f2efd5',
-                  color: unit === u ? 'var(--color-on-primary)' : 'var(--color-text-secondary)',
+                  color:
+                    unit === u
+                      ? 'var(--color-on-primary)'
+                      : 'var(--color-text-secondary)',
                   transition: 'all 0.2s',
                 }}
               >
@@ -147,12 +161,30 @@ export function ComplementFormModal({
         </div>
 
         {error && (
-          <p style={{ color: 'var(--color-error)', margin: 0, fontSize: '0.85rem' }}>{error}</p>
+          <p
+            style={{
+              color: 'var(--color-error)',
+              margin: 0,
+              fontSize: '0.85rem',
+            }}
+          >
+            {error}
+          </p>
         )}
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-xs)' }}>
-          <button onClick={handleClose} disabled={loading} style={cancelBtnStyle}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 'var(--space-sm)',
+            marginTop: 'var(--space-xs)',
+          }}
+        >
+          <button
+            onClick={handleClose}
+            disabled={loading}
+            style={cancelBtnStyle}
+          >
             Cancelar
           </button>
           <button
@@ -160,7 +192,11 @@ export function ComplementFormModal({
             disabled={loading || !isValid}
             style={submitBtnStyle(loading || !isValid)}
           >
-            {loading ? 'Guardando...' : isEdit ? 'Guardar' : 'Crear Complemento'}
+            {loading
+              ? 'Guardando...'
+              : isEdit
+                ? 'Guardar'
+                : 'Crear Complemento'}
           </button>
         </div>
       </div>

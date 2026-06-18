@@ -1,5 +1,14 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MdKitchen, MdMenuBook, MdTrendingUp, MdInventory2, MdCalculate, MdGridView, MdReceipt, MdExtension } from 'react-icons/md';
+import {
+  MdKitchen,
+  MdMenuBook,
+  MdTrendingUp,
+  MdInventory2,
+  MdCalculate,
+  MdGridView,
+  MdReceipt,
+  MdExtension,
+} from 'react-icons/md';
 
 const USER_LABEL_KEY = 'mordisquitos-user';
 
@@ -82,7 +91,9 @@ export function BottomNav() {
                 padding: 'var(--space-xs) var(--space-md)',
                 minWidth: '72px',
                 flex: '1 0 auto',
-                color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                color: isActive
+                  ? 'var(--color-primary)'
+                  : 'var(--color-text-secondary)',
                 transition: 'color 0.2s',
               }}
             >

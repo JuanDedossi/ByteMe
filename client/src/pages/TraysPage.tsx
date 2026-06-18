@@ -8,7 +8,11 @@ import { traysService } from '../services/trays.service';
 import { recipesService } from '../services/recipes.service';
 import { profitRulesService } from '../services/profit-rules.service';
 import { complementsService } from '../services/complements.service';
-import type { Tray, CreateTrayPayload, UpdateTrayPayload } from '../types/tray.types';
+import type {
+  Tray,
+  CreateTrayPayload,
+  UpdateTrayPayload,
+} from '../types/tray.types';
 import type { Recipe } from '../types/recipe.types';
 import type { ProfitRule } from '../types/profit-rule.types';
 import type { Complement } from '../types/complement.types';
@@ -34,7 +38,11 @@ export function TraysPage() {
   const fetchTrays = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await traysService.list({ page, limit, search: search || undefined });
+      const res = await traysService.list({
+        page,
+        limit,
+        search: search || undefined,
+      });
       setTrays(res.data);
       setTotal(res.total);
       setTotalPages(res.totalPages);
@@ -75,7 +83,9 @@ export function TraysPage() {
   const handleEditSubmit = async (payload: UpdateTrayPayload) => {
     if (!editingTray) return;
     const updated = await traysService.update(editingTray._id, payload);
-    setTrays((prev) => prev.map((t) => (t._id === editingTray._id ? updated : t)));
+    setTrays((prev) =>
+      prev.map((t) => (t._id === editingTray._id ? updated : t)),
+    );
     setEditingTray(null);
   };
 
@@ -110,7 +120,11 @@ export function TraysPage() {
         >
           Bandejas
         </h1>
-        <SearchBar value={search} onChange={handleSearch} placeholder="Buscar bandeja..." />
+        <SearchBar
+          value={search}
+          onChange={handleSearch}
+          placeholder="Buscar bandeja..."
+        />
       </div>
 
       {/* Content */}
@@ -130,7 +144,14 @@ export function TraysPage() {
         )}
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: 'var(--space-2xl)',
+              color: 'var(--color-text-secondary)',
+              fontFamily: 'var(--font-body)',
+            }}
+          >
             Cargando...
           </div>
         ) : trays.length === 0 ? (
@@ -147,7 +168,13 @@ export function TraysPage() {
               : 'Aún no hay bandejas. Creá la primera con el botón de abajo.'}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-sm)',
+            }}
+          >
             {trays.map((tray) => (
               <TrayCard
                 key={tray._id}
@@ -160,7 +187,11 @@ export function TraysPage() {
           </div>
         )}
 
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* FAB */}

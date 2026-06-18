@@ -31,6 +31,8 @@ ComplementSchema.index({ name: 'text' });
 
 export function getComplementModel(): mongoose.Model<ComplementDocument> {
   const db = mongoose.connection.useDb(getTenantDb(), { useCache: true });
-  return (db.models['Complement'] as mongoose.Model<ComplementDocument>) ??
-    db.model<ComplementDocument>('Complement', ComplementSchema);
+  return (
+    (db.models['Complement'] as mongoose.Model<ComplementDocument>) ??
+    db.model<ComplementDocument>('Complement', ComplementSchema)
+  );
 }
