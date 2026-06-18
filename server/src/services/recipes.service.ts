@@ -2,7 +2,7 @@ import { Types, PipelineStage } from 'mongoose';
 import { getRecipeModel, RecipeDocument } from '../models/recipe.model';
 import { findIngredientsByIds } from './ingredients.service';
 import { findProfitRuleById } from './profit-rules.service';
-import { findComplementsByIds } from './complements.service';
+import { findComplementsByIds, validateComplementQuantities } from './complements.service';
 import { roundCurrency } from '../utils/currency';
 import {
   calculateRecipeCost,
@@ -382,6 +382,9 @@ export async function createRecipe(
     if (foundComps.length !== dto.complements.length) {
       throw { status: 404, message: 'Uno o más complementos no existen' };
     }
+    // REQ-CMP-7 / REQ-REC-17: unit-aware quantity validation.
+    const complementMap = new Map(foundComps.map((c) => [c._id.toString(), c]));
+    validateComplementQuantities(dto.complements, complementMap);
   }
 
   const sellUnit = dto.sellUnit ?? 'unidad';
@@ -487,6 +490,9 @@ export async function updateRecipe(
       if (foundComps.length !== complementItems.length) {
         throw { status: 404, message: 'Uno o más complementos no existen' };
       }
+      // REQ-CMP-7 / REQ-REC-17: unit-aware quantity validation.
+      const complementMap = new Map(foundComps.map((c) => [c._id.toString(), c]));
+      validateComplementQuantities(complementItems, complementMap);
     }
     updates.complements = complementItems.map((c) => ({
       complementId: new Types.ObjectId(c.complementId),

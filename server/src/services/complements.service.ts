@@ -81,6 +81,41 @@ export async function findComplementsByIds(
   return result as ComplementDocument[];
 }
 
+// REQ-CMP-7 / REQ-REC-17 / REQ-TRA-15: unit-aware quantity validation.
+// The Zod `ComplementEntrySchema` only enforces `quantity > 0` because it is
+// pure and does not have access to the referenced complement's `unit`. The
+// unit-specific minimum (>= 1 for `unidad`, > 0 for `metro`) is checked here
+// using the complementMap the caller already built via `findComplementsByIds`.
+//
+// Callers MUST pass a map keyed by `complementId.toString()` containing every
+// referenced complement. Callers MUST also verify existence separately
+// (typically `foundComps.length === dto.complements.length`).
+export function validateComplementQuantities(
+  entries: { complementId: string; quantity: number }[],
+  complementMap: Map<string, ComplementDocument>,
+): void {
+  for (const entry of entries) {
+    const comp = complementMap.get(entry.complementId);
+    if (!comp) continue; // existence is checked by the caller
+    if (comp.unit === 'metro') {
+      if (!(entry.quantity > 0)) {
+        throw {
+          status: 400,
+          message: `La cantidad del complemento "${comp.name}" (metro) debe ser mayor a 0`,
+        };
+      }
+    } else {
+      // unidad (the only other supported unit in the model enum)
+      if (!(entry.quantity >= 1)) {
+        throw {
+          status: 400,
+          message: `La cantidad del complemento "${comp.name}" (unidad) debe ser al menos 1`,
+        };
+      }
+    }
+  }
+}
+
 export async function createComplement(
   dto: CreateComplementInput,
 ): Promise<ComplementDocument> {
