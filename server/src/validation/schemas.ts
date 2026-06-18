@@ -10,11 +10,34 @@ const SubRecipeItemSchema = z.object({
   quantity: z.number().nonnegative(),
 });
 
+const ComplementEntrySchema = z.object({
+  complementId: z.string(),
+  quantity: z.number().min(1, 'Complement quantity must be at least 1'),
+});
+
+export const CreateComplementSchema = z.object({
+  name: z.string().min(1),
+  unit: z.enum(['unidad', 'metro']).default('unidad'),
+  costPerUnit: z.number().nonnegative(),
+});
+
+export type CreateComplementInput = z.infer<typeof CreateComplementSchema>;
+
+export const UpdateComplementSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    unit: z.enum(['unidad', 'metro']).optional(),
+    costPerUnit: z.number().nonnegative().optional(),
+  });
+
+export type UpdateComplementInput = z.infer<typeof UpdateComplementSchema>;
+
 export const CreateRecipeSchema = z
   .object({
     name: z.string().min(1),
     ingredients: z.array(IngredientItemSchema).default([]),
     subRecipes: z.array(SubRecipeItemSchema).optional(),
+    complements: z.array(ComplementEntrySchema).optional(),
     profitRuleId: z.string(),
     sellUnit: z.enum(['unidad', 'kg']).optional(),
     yieldGrams: z.number().optional(),
@@ -38,6 +61,7 @@ export const UpdateRecipeSchema = z
     name: z.string().min(1).optional(),
     ingredients: z.array(IngredientItemSchema).optional(),
     subRecipes: z.array(SubRecipeItemSchema).optional(),
+    complements: z.array(ComplementEntrySchema).optional(),
     profitRuleId: z.string().optional(),
     sellUnit: z.enum(['unidad', 'kg']).optional(),
     yieldGrams: z.number().optional(),
@@ -76,6 +100,7 @@ export const CreateTraySchema = z.object({
       quantity: z.number().nonnegative(),
     }),
   ).min(1),
+  complements: z.array(ComplementEntrySchema).optional(),
   profitRuleId: z.string(),
 });
 
@@ -92,6 +117,7 @@ export const UpdateTraySchema = z
         }),
       )
       .optional(),
+    complements: z.array(ComplementEntrySchema).optional(),
     profitRuleId: z.string().optional(),
   })
   .refine(
