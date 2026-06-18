@@ -7,9 +7,11 @@ import { Pagination } from '../components/common/Pagination';
 import { recipesService } from '../services/recipes.service';
 import { ingredientsService } from '../services/ingredients.service';
 import { profitRulesService } from '../services/profit-rules.service';
+import { complementsService } from '../services/complements.service';
 import type { Recipe, CreateRecipePayload, UpdateRecipePayload } from '../types/recipe.types';
 import type { Ingredient } from '../types/ingredient.types';
 import type { ProfitRule } from '../types/profit-rule.types';
+import type { Complement } from '../types/complement.types';
 
 export function RecipesPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -24,6 +26,9 @@ export function RecipesPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [profitRules, setProfitRules] = useState<ProfitRule[]>([]);
   const [subRecipes, setSubRecipes] = useState<Recipe[]>([]);
+  // Includes inactive complements so the form can render them with the
+  // "Inactivo" badge (P1).
+  const [complements, setComplements] = useState<Complement[]>([]);
 
   const limit = 10;
 
@@ -39,16 +44,19 @@ export function RecipesPage() {
     }
   }, [page, search]);
 
-  // Load supporting data once
+  // Load supporting data once. Complements are fetched with a high limit so
+  // the form picker includes both active and inactive entries.
   useEffect(() => {
     Promise.all([
       ingredientsService.list({ limit: 200 }),
       profitRulesService.list(),
       recipesService.list({ isSubRecipe: true, limit: 200 }),
-    ]).then(([ingsRes, rules, subRes]) => {
+      complementsService.list({ limit: 200 }),
+    ]).then(([ingsRes, rules, subRes, compRes]) => {
       setIngredients(ingsRes.data);
       setProfitRules(rules);
       setSubRecipes(subRes.data);
+      setComplements(compRes.data);
     });
   }, []);
 
@@ -205,6 +213,7 @@ export function RecipesPage() {
         onSubmit={handleCreate}
         ingredients={ingredients}
         profitRules={profitRules}
+        complements={complements}
         subRecipes={subRecipes}
       />
 
@@ -215,6 +224,7 @@ export function RecipesPage() {
         initialData={editingRecipe}
         ingredients={ingredients}
         profitRules={profitRules}
+        complements={complements}
         subRecipes={subRecipes}
       />
     </div>
