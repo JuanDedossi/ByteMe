@@ -138,7 +138,74 @@ export function TrayCard({ tray, onEditRequest, onDelete, onUpdatePrice }: TrayC
               ))}
             </tbody>
           </table>
+
+          {/* Complementos table (only when the tray has any) */}
+          {tray.complements && tray.complements.length > 0 && (
+            <>
+              <p
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  color: 'var(--color-text-secondary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  margin: 'var(--space-md) 0 var(--space-sm)',
+                }}
+              >
+                Complementos
+              </p>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {['Complemento', 'Cantidad', 'Costo'].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontSize: '0.7rem',
+                          color: 'var(--color-text-secondary)',
+                          textAlign: 'left',
+                          paddingBottom: 'var(--space-xs)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tray.complements.map((c) => (
+                    <tr key={c.complementId}>
+                      <td style={tdStyle}>
+                        {/* P4 disambiguation: name (unit) */}
+                        {c.complementName}
+                        {c.complementUnit ? ` (${c.complementUnit})` : ''}
+                      </td>
+                      <td style={tdStyle}>
+                        {c.quantity}
+                        {c.complementUnit === 'metro'
+                          ? ' m'
+                          : c.complementUnit === 'unidad'
+                          ? ' u.'
+                          : ''}
+                      </td>
+                      <td style={tdStyle}>{c.cost !== undefined ? fmt(c.cost) : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
           <div style={{ marginTop: 'var(--space-sm)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {/*
+             * REQ-TRA-2: cost = sum(recipe.costBase × qty) + sum(tray.complements × qty).
+             * Single label "Costo de producción" — the cost is already correct
+             * because the backend uses costBase. The breakdown above (Recetas +
+             * Complementos) shows where the value comes from.
+             */}
             <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
               Costo de producción: <strong>{fmt(tray.cost)}</strong>
             </span>
