@@ -8,10 +8,19 @@ export interface TrayRecipe {
   cost: number;
 }
 
+export interface TrayComplement {
+  complementId: string;
+  complementName?: string;
+  complementUnit?: string;
+  quantity: number;
+  cost?: number;
+}
+
 export interface Tray {
   _id: string;
   name: string;
   recipes: TrayRecipe[];
+  complements?: TrayComplement[];
   cost: number;
   profitRuleId: string;
   profitRuleName: string;
@@ -27,11 +36,13 @@ export interface Tray {
 export interface CreateTrayPayload {
   name: string;
   recipes: { recipeId: string; quantity: number }[];
+  complements?: { complementId: string; quantity: number }[];
   profitRuleId: string;
 }
 
 export interface UpdateTrayPayload {
   name?: string;
   recipes?: { recipeId: string; quantity: number }[];
+  complements?: { complementId: string; quantity: number }[];
   profitRuleId?: string;
 }
