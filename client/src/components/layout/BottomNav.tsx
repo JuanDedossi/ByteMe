@@ -14,13 +14,13 @@ const USER_LABEL_KEY = 'mordisquitos-user';
 
 const navItems = [
   { path: '/ingredientes', icon: MdKitchen, label: 'Ingredientes' },
-  { path: '/recetas', icon: MdMenuBook, label: 'Recetas' },
-  { path: '/markups', icon: MdTrendingUp, label: 'Markups' },
-  { path: '/stock', icon: MdInventory2, label: 'Stock' },
-  { path: '/bandejas', icon: MdGridView, label: 'Bandejas' },
   { path: '/complementos', icon: MdExtension, label: 'Complementos' },
-  { path: '/historial', icon: MdReceipt, label: 'Historial' },
+  { path: '/recetas', icon: MdMenuBook, label: 'Recetas' },
+  { path: '/bandejas', icon: MdGridView, label: 'Bandejas' },
+  { path: '/stock', icon: MdInventory2, label: 'Stock' },
+  { path: '/markups', icon: MdTrendingUp, label: 'Markups' },
   { path: '/calculadora', icon: MdCalculate, label: 'Calculadora' },
+  { path: '/historial', icon: MdReceipt, label: 'Historial' },
 ];
 
 export function BottomNav() {
