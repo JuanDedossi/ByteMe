@@ -1,16 +1,26 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MdKitchen, MdMenuBook, MdTrendingUp, MdInventory2, MdCalculate, MdGridView, MdReceipt } from 'react-icons/md';
+import {
+  MdKitchen,
+  MdMenuBook,
+  MdTrendingUp,
+  MdInventory2,
+  MdCalculate,
+  MdGridView,
+  MdReceipt,
+  MdExtension,
+} from 'react-icons/md';
 
 const USER_LABEL_KEY = 'mordisquitos-user';
 
 const navItems = [
   { path: '/ingredientes', icon: MdKitchen, label: 'Ingredientes' },
+  { path: '/complementos', icon: MdExtension, label: 'Complementos' },
   { path: '/recetas', icon: MdMenuBook, label: 'Recetas' },
-  { path: '/markups', icon: MdTrendingUp, label: 'Markups' },
-  { path: '/stock', icon: MdInventory2, label: 'Stock' },
   { path: '/bandejas', icon: MdGridView, label: 'Bandejas' },
-  { path: '/historial', icon: MdReceipt, label: 'Historial' },
+  { path: '/stock', icon: MdInventory2, label: 'Stock' },
+  { path: '/markups', icon: MdTrendingUp, label: 'Markups' },
   { path: '/calculadora', icon: MdCalculate, label: 'Calculadora' },
+  { path: '/historial', icon: MdReceipt, label: 'Historial' },
 ];
 
 export function BottomNav() {
@@ -81,7 +91,9 @@ export function BottomNav() {
                 padding: 'var(--space-xs) var(--space-md)',
                 minWidth: '72px',
                 flex: '1 0 auto',
-                color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                color: isActive
+                  ? 'var(--color-primary)'
+                  : 'var(--color-text-secondary)',
                 transition: 'color 0.2s',
               }}
             >

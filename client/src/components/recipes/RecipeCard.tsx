@@ -357,6 +357,69 @@ export function RecipeCard({
               ))}
             </tbody>
           </table>
+
+          {/* Complementos table (only when the recipe has any) */}
+          {recipe.complements && recipe.complements.length > 0 && (
+            <>
+              <p
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  color: 'var(--color-text-secondary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  margin: 'var(--space-md) 0 var(--space-sm)',
+                }}
+              >
+                Complementos
+              </p>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {['Complemento', 'Cantidad', 'Costo'].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontSize: '0.7rem',
+                          color: 'var(--color-text-secondary)',
+                          textAlign: 'left',
+                          paddingBottom: 'var(--space-xs)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recipe.complements.map((c) => (
+                    <tr key={c.complementId}>
+                      <td style={tdStyle}>
+                        {/* P4 disambiguation: name (unit) */}
+                        {c.complementName}
+                        {c.complementUnit ? ` (${c.complementUnit})` : ''}
+                      </td>
+                      <td style={tdStyle}>
+                        {c.quantity}
+                        {c.complementUnit === 'metro'
+                          ? ' m'
+                          : c.complementUnit === 'unidad'
+                            ? ' u.'
+                            : ''}
+                      </td>
+                      <td style={tdStyle}>
+                        {c.cost !== undefined ? fmt(c.cost) : ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
           <div
             style={{
               marginTop: 'var(--space-sm)',
@@ -365,15 +428,45 @@ export function RecipeCard({
               gap: '2px',
             }}
           >
-            <span
-              style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.8rem',
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              Costo producción: <strong>{fmt(recipe.cost)}</strong>
-            </span>
+            {/*
+             * REQ-REC-14: when complements exist, show BOTH costBase and
+             * costTotal with disambiguating labels. Otherwise show one line
+             * (costBase === costTotal when no complements).
+             */}
+            {recipe.complements && recipe.complements.length > 0 ? (
+              <>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  Costo base (para usar en bandejas):{' '}
+                  <strong>{fmt(recipe.costBase)}</strong>
+                </span>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.8rem',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  Costo total (con empaque, para venta individual):{' '}
+                  <strong>{fmt(recipe.costTotal)}</strong>
+                </span>
+              </>
+            ) : (
+              <span
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.8rem',
+                  color: 'var(--color-text-secondary)',
+                }}
+              >
+                Costo producción: <strong>{fmt(recipe.cost)}</strong>
+              </span>
+            )}
             {recipe.sellUnit === 'unidad' && recipe.yieldUnits > 1 && (
               <span
                 style={{

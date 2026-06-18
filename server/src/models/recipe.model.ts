@@ -8,9 +8,15 @@ export interface IRecipeIngredient {
   quantity: number;
 }
 
+export interface IRecipeComplement {
+  complementId: Types.ObjectId;
+  quantity: number;
+}
+
 export interface IRecipe {
   name: string;
   ingredients: IRecipeIngredient[];
+  complements: IRecipeComplement[];
   profitRuleId: Types.ObjectId;
   sellUnit: string;
   yieldGrams: number;
@@ -45,10 +51,28 @@ const RecipeIngredientSchema = new Schema(
   { _id: false },
 );
 
+const RecipeComplementSchema = new Schema(
+  {
+    complementId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Complement',
+      required: true,
+    },
+    // REQ-CMP-7 / REQ-REC-17: unit-aware validation is enforced at the API
+    // boundary (Zod + service helper). The Mongoose `min` is a defensive
+    // floor against negatives only — both `unidad` (>= 1) and `metro` (> 0)
+    // quantities pass at this layer; the service rejects the specific unit
+    // violations before persistence.
+    quantity: { type: Number, required: true, min: 0 },
+  },
+  { _id: false },
+);
+
 const RecipeSchema = new Schema<RecipeDocument>(
   {
     name: { type: String, required: true, unique: true, trim: true },
     ingredients: { type: [RecipeIngredientSchema], default: [] },
+    complements: { type: [RecipeComplementSchema], default: [] },
     profitRuleId: {
       type: Schema.Types.ObjectId,
       ref: 'ProfitRule',
@@ -70,8 +94,13 @@ const RecipeSchema = new Schema<RecipeDocument>(
   { timestamps: true },
 );
 
+// Index for cascade: find all recipes referencing a given complement.
+RecipeSchema.index({ 'complements.complementId': 1 });
+
 export function getRecipeModel(): mongoose.Model<RecipeDocument> {
   const db = mongoose.connection.useDb(getTenantDb(), { useCache: true });
-  return (db.models['Recipe'] as mongoose.Model<RecipeDocument>) ??
-    db.model<RecipeDocument>('Recipe', RecipeSchema);
+  return (
+    (db.models['Recipe'] as mongoose.Model<RecipeDocument>) ??
+    db.model<RecipeDocument>('Recipe', RecipeSchema)
+  );
 }
