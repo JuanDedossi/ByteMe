@@ -58,7 +58,12 @@ const RecipeComplementSchema = new Schema(
       ref: 'Complement',
       required: true,
     },
-    quantity: { type: Number, required: true, min: 1 },
+    // REQ-CMP-7 / REQ-REC-17: unit-aware validation is enforced at the API
+    // boundary (Zod + service helper). The Mongoose `min` is a defensive
+    // floor against negatives only — both `unidad` (>= 1) and `metro` (> 0)
+    // quantities pass at this layer; the service rejects the specific unit
+    // violations before persistence.
+    quantity: { type: Number, required: true, min: 0 },
   },
   { _id: false },
 );

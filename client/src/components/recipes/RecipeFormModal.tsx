@@ -4,6 +4,7 @@ import { Modal } from '../common/Modal';
 import { SearchableSelect } from '../common/SearchableSelect';
 import type { Ingredient } from '../../types/ingredient.types';
 import type { ProfitRule } from '../../types/profit-rule.types';
+import type { Complement } from '../../types/complement.types';
 import type { CreateRecipePayload, Recipe } from '../../types/recipe.types';
 
 interface IngredientRow {
@@ -18,22 +19,39 @@ interface SubRecipeRow {
   quantity: string;
 }
 
+interface ComplementRow {
+  id: number;
+  complementId: string;
+  quantity: string;
+}
+
 interface RecipeFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (payload: CreateRecipePayload) => Promise<void>;
   ingredients: Ingredient[];
   profitRules: ProfitRule[];
+  complements: Complement[];
   subRecipes?: Recipe[];
   initialData?: Recipe | null;
 }
 
 let rowCounter = 0;
 
-export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profitRules, subRecipes = [], initialData }: RecipeFormModalProps) {
+export function RecipeFormModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  ingredients,
+  profitRules,
+  complements,
+  subRecipes = [],
+  initialData,
+}: RecipeFormModalProps) {
   const [name, setName] = useState('');
   const [rows, setRows] = useState<IngredientRow[]>([{ id: ++rowCounter, ingredientId: '', quantity: '' }]);
   const [subRecipeRows, setSubRecipeRows] = useState<SubRecipeRow[]>([]);
+  const [complementRows, setComplementRows] = useState<ComplementRow[]>([]);
   const [profitRuleId, setProfitRuleId] = useState('');
   const [sellUnit, setSellUnit] = useState<'unidad' | 'kg'>('unidad');
   const [yieldGrams, setYieldGrams] = useState('');
@@ -51,10 +69,10 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
         setYieldGrams(initialData.yieldGrams ? initialData.yieldGrams.toString() : '');
         setYieldUnits(initialData.yieldUnits ? initialData.yieldUnits.toString() : '1');
         setIsSubRecipe(!!initialData.isSubRecipe);
-        
+
         const rRows: IngredientRow[] = [];
         const srRows: SubRecipeRow[] = [];
-        
+
         initialData.ingredients.forEach(i => {
           if (i.isSubRecipe) {
             srRows.push({ id: ++rowCounter, recipeId: i.ingredientId, quantity: i.quantity.toString() });
@@ -62,15 +80,23 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
             rRows.push({ id: ++rowCounter, ingredientId: i.ingredientId, quantity: i.quantity.toString() });
           }
         });
-        
+
         if (rRows.length === 0) rRows.push({ id: ++rowCounter, ingredientId: '', quantity: '' });
-        
+
         setRows(rRows);
         setSubRecipeRows(srRows);
+
+        const cRows: ComplementRow[] = (initialData.complements ?? []).map((c) => ({
+          id: ++rowCounter,
+          complementId: c.complementId,
+          quantity: c.quantity.toString(),
+        }));
+        setComplementRows(cRows);
       } else {
         setName('');
         setRows([{ id: ++rowCounter, ingredientId: '', quantity: '' }]);
         setSubRecipeRows([]);
+        setComplementRows([]);
         setProfitRuleId(profitRules[0]?._id ?? '');
         setSellUnit('unidad');
         setYieldGrams('');
@@ -86,11 +112,30 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
 
   const getIngredient = (id: string) => ingredients.find((i) => i._id === id);
   const getRule = (id: string) => profitRules.find((r) => r._id === id);
+  const getComplement = (id: string) => complements.find((c) => c._id === id);
+  // P1: only active complements are valid for NEW picks. Inactive ones already
+  // loaded from initialData remain visible in the row (handled by getComplement
+  // + the Inactivo badge below) but are excluded from the search options.
+  const activeComplements = complements.filter((c) => c.isActive);
 
   const getSubRecipe = (id: string) => subRecipes.find((r) => r._id === id);
 
   const validRows = rows.filter((r) => r.ingredientId && parseFloat(r.quantity) > 0);
   const validSubRecipeRows = subRecipeRows.filter((r) => r.recipeId && parseFloat(r.quantity) > 0);
+  // REQ-REC-17: complement quantity is unit-aware. unidad requires >= 1, metro
+  // requires > 0. The complement document is resolved via getComplement (the
+  // form keeps inactive entries visible, so `comp` is not guaranteed to exist
+  // for every row — we treat unknown as "valid for filter" and rely on the
+  // submission-time check below for the actual gate).
+  const isComplementQuantityValid = (q: string, comp: Complement | undefined): boolean => {
+    const n = parseFloat(q);
+    if (Number.isNaN(n)) return false;
+    if (!comp) return n > 0; // unknown unit: fall back to absolute floor
+    return comp.unit === 'metro' ? n > 0 : n >= 1;
+  };
+  const validComplementRows = complementRows.filter(
+    (r) => r.complementId && isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
+  );
 
   const ingredientCost = validRows.reduce((sum, row) => {
     const ing = getIngredient(row.ingredientId);
@@ -103,13 +148,22 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
     const sub = getSubRecipe(row.recipeId);
     if (!sub) return sum;
     const q = parseFloat(row.quantity);
+    // REQ-REC-13 / REQ-SUB-1: sub-recipe propagation uses sub.costBase (NOT costTotal).
     if (sub.sellUnit === 'kg' && sub.yieldGrams > 0) {
-      return sum + (sub.cost / sub.yieldGrams) * q;
+      return sum + (sub.costBase / sub.yieldGrams) * q;
     }
-    return sum + (sub.cost / (sub.yieldUnits || 1)) * q;
+    return sum + (sub.costBase / (sub.yieldUnits || 1)) * q;
   }, 0);
 
-  const totalCost = ingredientCost + subRecipeCost;
+  // costBase excludes own complements (REQ-REC-13).
+  const costBase = ingredientCost + subRecipeCost;
+  const complementCost = validComplementRows.reduce((sum, row) => {
+    const c = getComplement(row.complementId);
+    if (!c) return sum;
+    return sum + c.costPerUnit * parseFloat(row.quantity);
+  }, 0);
+  // costTotal = costBase + own complements (REQ-REC-13 / REQ-PRI-3).
+  const totalCost = costBase + complementCost;
 
   const selectedRule = getRule(profitRuleId);
   const yieldG = parseFloat(yieldGrams);
@@ -127,11 +181,17 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
 
   const hasItems = validRows.length > 0 || validSubRecipeRows.length > 0;
 
+  // Check that all complement rows satisfy the unit-aware rule (REQ-REC-17).
+  const allComplementQuantitiesValid = complementRows.every(
+    (r) => !r.complementId || isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
+  );
+
   const isValid =
     name.trim().length >= 2 &&
     hasItems &&
     profitRuleId !== '' &&
-    (sellUnit !== 'kg' || yieldG > 0);
+    (sellUnit !== 'kg' || yieldG > 0) &&
+    allComplementQuantitiesValid;
 
   const addRow = () => {
     setRows((prev) => [...prev, { id: ++rowCounter, ingredientId: '', quantity: '' }]);
@@ -157,6 +217,18 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
     setSubRecipeRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
   };
 
+  const addComplementRow = () => {
+    setComplementRows((prev) => [...prev, { id: ++rowCounter, complementId: '', quantity: '' }]);
+  };
+
+  const removeComplementRow = (id: number) => {
+    setComplementRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const updateComplementRow = (id: number, field: 'complementId' | 'quantity', value: string) => {
+    setComplementRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+  };
+
   const handleSubmit = async () => {
     setError('');
     if (!isValid) return;
@@ -177,6 +249,12 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
         subRecipes: validSubRecipeRows.length > 0
           ? validSubRecipeRows.map((r) => ({
               recipeId: r.recipeId,
+              quantity: parseFloat(r.quantity),
+            }))
+          : undefined,
+        complements: validComplementRows.length > 0
+          ? validComplementRows.map((r) => ({
+              complementId: r.complementId,
               quantity: parseFloat(r.quantity),
             }))
           : undefined,
@@ -317,10 +395,11 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
                 const qNum = parseFloat(row.quantity);
                 let rowCost: number | null = null;
                 if (sub && qNum > 0) {
+                  // REQ-REC-13 / REQ-SUB-1: sub-recipe cost preview uses costBase.
                   if (sub.sellUnit === 'kg' && sub.yieldGrams > 0) {
-                    rowCost = (sub.cost / sub.yieldGrams) * qNum;
+                    rowCost = (sub.costBase / sub.yieldGrams) * qNum;
                   } else {
-                    rowCost = (sub.cost / (sub.yieldUnits || 1)) * qNum;
+                    rowCost = (sub.costBase / (sub.yieldUnits || 1)) * qNum;
                   }
                 }
                 const unitLabel = sub ? (sub.sellUnit === 'kg' ? 'g' : 'u.') : 'u.';
@@ -357,6 +436,168 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
             </div>
             <button onClick={addSubRecipeRow} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginTop: 'var(--space-sm)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-primary)', padding: 0, fontWeight: 600 }}>
               <MdAdd size={18} /> Agregar sub-receta
+            </button>
+          </div>
+        )}
+
+        {/* Complementos section */}
+        {complements.length > 0 && (
+          <div>
+            <label style={labelStyle}>Complementos</label>
+            <p
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.7rem',
+                color: 'var(--color-text-secondary)',
+                margin: '0 0 var(--space-sm)',
+              }}
+            >
+              Packaging y decoración (bandejas, telas, moños).
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              {complementRows.map((row) => {
+                const comp = getComplement(row.complementId);
+                const qNum = parseFloat(row.quantity);
+                // Row cost preview uses the loaded complement's costPerUnit.
+                // Inactive complements still contribute (REQ-REC-16). Preview
+                // is unit-aware: only show when quantity passes the rule.
+                const qPassesRule = isComplementQuantityValid(row.quantity, comp);
+                const rowCost = comp && qPassesRule ? comp.costPerUnit * qNum : null;
+                // P2: dynamic step/min driven by the unit (REQ-REC-17).
+                // metro uses 0.1 (granular enough to allow 0.2); unidad uses 1.
+                const stepValue = comp?.unit === 'metro' ? '0.1' : '1';
+                const minValue = comp?.unit === 'metro' ? '0.1' : '1';
+                const unitLabel = comp ? comp.unit : 'u.';
+                return (
+                  <div
+                    key={row.id}
+                    style={{
+                      display: 'flex',
+                      gap: 'var(--space-xs)',
+                      alignItems: 'center',
+                      opacity: comp && !comp.isActive ? 0.7 : 1,
+                    }}
+                  >
+                    {/*
+                     * P1: only active complements appear in the SearchableSelect
+                     * options for new picks. Inactive complements already in the
+                     * form's `complements[]` (from initialData) are rendered
+                     * inline as a static label with an "Inactivo" badge so they
+                     * remain visible.
+                     */}
+                    {comp && !comp.isActive ? (
+                      <div
+                        style={{
+                          flex: 2,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--space-xs)',
+                          padding: 'var(--space-xs) var(--space-sm)',
+                          border: '1.5px solid rgba(218, 193, 184, 0.4)',
+                          borderRadius: 'var(--radius-sm)',
+                          minHeight: '36px',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.9rem',
+                            color: 'var(--color-text-primary)',
+                            flex: 1,
+                          }}
+                        >
+                          {comp.name} ({comp.unit})
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.6rem',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            background: 'var(--color-warning)',
+                            color: 'var(--color-on-primary)',
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-full)',
+                          }}
+                        >
+                          Inactivo
+                        </span>
+                      </div>
+                    ) : (
+                      <SearchableSelect
+                        // P1: only active complements are offered as options.
+                        options={activeComplements.map((c) => ({
+                          value: c._id,
+                          label: `${c.name} (${c.unit})`,
+                        }))}
+                        value={row.complementId}
+                        onChange={(val) => updateComplementRow(row.id, 'complementId', val)}
+                        placeholder="Complemento..."
+                        style={{ flex: 2 }}
+                      />
+                    )}
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <input
+                        type="number"
+                        value={row.quantity}
+                        onChange={(e) => updateComplementRow(row.id, 'quantity', e.target.value)}
+                        placeholder="0"
+                        min={minValue}
+                        step={stepValue}
+                        style={{ ...inputStyle, width: '100%', paddingRight: '28px', boxSizing: 'border-box' }}
+                      />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          right: 8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          fontFamily: 'var(--font-body)',
+                          fontSize: '0.75rem',
+                          color: 'var(--color-text-secondary)',
+                        }}
+                      >
+                        {unitLabel}
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: '0.75rem',
+                        color: 'var(--color-text-secondary)',
+                        minWidth: '60px',
+                        textAlign: 'right',
+                      }}
+                    >
+                      {rowCost !== null ? fmt(rowCost) : ''}
+                    </span>
+                    <button onClick={() => removeComplementRow(row.id)} style={iconBtnStyle}>
+                      <MdClose size={16} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              onClick={addComplementRow}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-xs)',
+                marginTop: 'var(--space-sm)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.85rem',
+                color: 'var(--color-primary)',
+                padding: 0,
+                fontWeight: 600,
+              }}
+            >
+              <MdAdd size={18} /> Agregar complemento
             </button>
           </div>
         )}
@@ -445,9 +686,25 @@ export function RecipeFormModal({ isOpen, onClose, onSubmit, ingredients, profit
         {/* Preview */}
         {hasItems && profitRuleId && (
           <div style={{ background: '#f8f4db', borderRadius: 'var(--radius-sm)', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-              Costo de producción: <strong>{fmt(totalCost)}</strong>
-            </span>
+            {/*
+             * REQ-REC-14: when the recipe has complements, show BOTH costBase
+             * and costTotal with disambiguating labels. Otherwise show one line
+             * (costBase === costTotal when there are no complements).
+             */}
+            {validComplementRows.length > 0 ? (
+              <>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                  Costo base (para usar en bandejas): <strong>{fmt(costBase)}</strong>
+                </span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                  Costo total (con empaque, para venta individual): <strong>{fmt(totalCost)}</strong>
+                </span>
+              </>
+            ) : (
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                Costo de producción: <strong>{fmt(totalCost)}</strong>
+              </span>
+            )}
             {selectedRule && (
               <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                 Markup aplicado: <strong>{selectedRule.name} ({selectedRule.markupPercentage}%)</strong>

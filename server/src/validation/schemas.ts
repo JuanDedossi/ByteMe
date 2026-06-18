@@ -10,9 +10,16 @@ const SubRecipeItemSchema = z.object({
   quantity: z.number().nonnegative(),
 });
 
+// REQ-CMP-7: unit-aware validation lives in the service layer (see
+// `validateComplementQuantities` in `services/complements.service.ts`) because
+// Zod schemas are pure and need the referenced complement document to know its
+// `unit`. This schema enforces only the absolute floor: `quantity > 0`. Both
+// unidades and metros must have a positive quantity; the unit-specific minimum
+// (>= 1 for unidad, > 0 for metro) is checked in the service after fetching
+// the referenced complement.
 const ComplementEntrySchema = z.object({
   complementId: z.string(),
-  quantity: z.number().min(1, 'Complement quantity must be at least 1'),
+  quantity: z.number().positive('Complement quantity must be greater than 0'),
 });
 
 export const CreateComplementSchema = z.object({

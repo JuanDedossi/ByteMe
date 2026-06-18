@@ -7,9 +7,11 @@ import { Pagination } from '../components/common/Pagination';
 import { traysService } from '../services/trays.service';
 import { recipesService } from '../services/recipes.service';
 import { profitRulesService } from '../services/profit-rules.service';
+import { complementsService } from '../services/complements.service';
 import type { Tray, CreateTrayPayload, UpdateTrayPayload } from '../types/tray.types';
 import type { Recipe } from '../types/recipe.types';
 import type { ProfitRule } from '../types/profit-rule.types';
+import type { Complement } from '../types/complement.types';
 
 export function TraysPage() {
   const [trays, setTrays] = useState<Tray[]>([]);
@@ -23,6 +25,9 @@ export function TraysPage() {
 
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [profitRules, setProfitRules] = useState<ProfitRule[]>([]);
+  // Includes inactive complements so the form can render them with the
+  // "Inactivo" badge (P1).
+  const [complements, setComplements] = useState<Complement[]>([]);
 
   const limit = 10;
 
@@ -42,9 +47,11 @@ export function TraysPage() {
     Promise.all([
       recipesService.list({ limit: 200 }),
       profitRulesService.list(),
-    ]).then(([recipesRes, rules]) => {
+      complementsService.list({ limit: 200 }),
+    ]).then(([recipesRes, rules, compRes]) => {
       setRecipes(recipesRes.data);
       setProfitRules(rules);
+      setComplements(compRes.data);
     });
   }, []);
 
@@ -189,6 +196,7 @@ export function TraysPage() {
         onSubmit={handleCreate}
         recipes={recipes}
         profitRules={profitRules}
+        complements={complements}
       />
 
       <TrayFormModal
@@ -198,6 +206,7 @@ export function TraysPage() {
         initialData={editingTray}
         recipes={recipes}
         profitRules={profitRules}
+        complements={complements}
       />
     </div>
   );

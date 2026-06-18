@@ -3,7 +3,7 @@ import { getTrayModel, TrayDocument } from '../models/tray.model';
 import { getRecipeModel } from '../models/recipe.model';
 import { findProfitRuleById } from './profit-rules.service';
 import { findRecipeById } from './recipes.service';
-import { findComplementsByIds } from './complements.service';
+import { findComplementsByIds, validateComplementQuantities } from './complements.service';
 import { roundCurrency } from '../utils/currency';
 import {
   calculateTrayCost,
@@ -244,6 +244,9 @@ export async function createTray(dto: CreateTrayInput): Promise<EnrichedTray> {
     if (foundComps.length !== dto.complements.length) {
       throw { status: 404, message: 'Uno o más complementos no existen' };
     }
+    // REQ-CMP-7 / REQ-TRA-15: unit-aware quantity validation.
+    const complementMap = new Map(foundComps.map((c) => [c._id.toString(), c]));
+    validateComplementQuantities(dto.complements, complementMap);
   }
 
   const tray = await Tray.create({
@@ -318,6 +321,9 @@ export async function updateTray(
       if (foundComps.length !== complementItems.length) {
         throw { status: 404, message: 'Uno o más complementos no existen' };
       }
+      // REQ-CMP-7 / REQ-TRA-15: unit-aware quantity validation.
+      const complementMap = new Map(foundComps.map((c) => [c._id.toString(), c]));
+      validateComplementQuantities(complementItems, complementMap);
     }
     updates.complements = complementItems.map((c) => ({
       complementId: new Types.ObjectId(c.complementId),
