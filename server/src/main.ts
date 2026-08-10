@@ -1,3 +1,12 @@
+// Pin server timezone BEFORE any Date/timestamp code runs. Vercel runs
+// serverless functions in UTC; without this, local-time date logic in
+// sales.stats / sales.routes would compute week/month boundaries in UTC,
+// shifting the weekly counter by the TZ offset for users not on UTC.
+// Override at runtime by setting the TZ env var (e.g. in Vercel project settings).
+if (!process.env.TZ) {
+  process.env.TZ = 'America/Argentina/Buenos_Aires';
+}
+
 import app from './app';
 import { connectDB } from './db';
 import { runRenameMarginToMarkupMigration } from './migrations/rename-margin-to-markup';

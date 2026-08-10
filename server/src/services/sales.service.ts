@@ -1,7 +1,7 @@
 import mongoose, { Types } from 'mongoose';
 import { getSaleModel, SaleDocument } from '../models/sale.model';
-import { getRecipeModel } from '../models/recipe.model';
-import { getTrayModel } from '../models/tray.model';
+import { getRecipeModel, RecipeDocument } from '../models/recipe.model';
+import { getTrayModel, TrayDocument } from '../models/tray.model';
 import { findRecipeById } from './recipes.service';
 import { findTrayById } from './trays.service';
 import { roundCurrency } from '../utils/currency';
@@ -41,13 +41,17 @@ export async function getSaleStats(): Promise<{
 }> {
   const Sale = getSaleModel();
   const now = new Date();
-  // UTC boundaries para coincidir con los timestamps de MongoDB
-  const day = now.getUTCDay();
+  // Local-time boundaries (consistente con sales.routes.ts y SalesHistoryPage).
+  // `new Date(y, m, d)` representa el instante local de medianoche; MongoDB compara
+  // correctamente contra `createdAt` en UTC porque ambos son el mismo instante.
+  const day = now.getDay();
   const diffToMonday = day === 0 ? 6 : day - 1;
   const weekStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - diffToMonday),
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - diffToMonday,
   );
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const [weeklyResult, monthlyResult] = await Promise.all([
     Sale.aggregate([
@@ -97,42 +101,84 @@ export async function createSale(
     Promise.all(trayItems.map((item) => findTrayById(item.trayId!))),
   ]);
 
+  // Aggregate quantities per unique ID before the transaction. Doing one
+  // findOneAndUpdate per duplicate ID in parallel causes MongoDB transaction
+  // number conflicts ("Given transaction number N does not match any in-progress
+  // transactions") when two updates target the same document within the same
+  // session — see sales batch 500 bug.
+  const recipeQtyMap = new Map<string, number>();
+  for (const item of recipeItems) {
+    recipeQtyMap.set(
+      item.recipeId!,
+      (recipeQtyMap.get(item.recipeId!) ?? 0) + item.quantity,
+    );
+  }
+  const trayQtyMap = new Map<string, number>();
+  for (const item of trayItems) {
+    trayQtyMap.set(
+      item.trayId!,
+      (trayQtyMap.get(item.trayId!) ?? 0) + item.quantity,
+    );
+  }
+  const recipeAggregated = Array.from(recipeQtyMap, ([id, quantity]) => ({
+    id,
+    quantity,
+  }));
+  const trayAggregated = Array.from(trayQtyMap, ([id, quantity]) => ({
+    id,
+    quantity,
+  }));
+
+  const recipeById = new Map(recipes.map((r) => [r._id.toString(), r]));
+  const trayById = new Map(trays.map((t) => [t._id.toString(), t]));
+
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
 
-    // Atomic stock deduction within the transaction
+    // Atomic stock deduction within the transaction — one update per unique ID
     const [recipeUpdates, trayUpdates] = await Promise.all([
       Promise.all(
-        recipeItems.map((item) =>
+        recipeAggregated.map(({ id, quantity }) =>
           Recipe.findOneAndUpdate(
-            { _id: item.recipeId, stock: { $gte: item.quantity } },
-            { $inc: { stock: -item.quantity } },
+            { _id: id, stock: { $gte: quantity } },
+            { $inc: { stock: -quantity } },
             { new: true, session },
           ),
         ),
       ),
       Promise.all(
-        trayItems.map((item) =>
+        trayAggregated.map(({ id, quantity }) =>
           Tray.findOneAndUpdate(
-            { _id: item.trayId, stock: { $gte: item.quantity } },
-            { $inc: { stock: -item.quantity } },
+            { _id: id, stock: { $gte: quantity } },
+            { $inc: { stock: -quantity } },
             { new: true, session },
           ),
         ),
       ),
     ]);
 
-    // Check for insufficient stock
+    // Build per-ID lookup of update results (null = insufficient stock or missing)
+    const recipeUpdateById = new Map<string, RecipeDocument | null>(
+      recipeUpdates.map((doc, i) => [recipeAggregated[i].id, doc]),
+    );
+    const trayUpdateById = new Map<string, TrayDocument | null>(
+      trayUpdates.map((doc, i) => [trayAggregated[i].id, doc]),
+    );
+
+    // Check for insufficient stock — one error per original line item so the user
+    // sees which products failed even when there are duplicates.
     const errors: string[] = [];
-    for (let i = 0; i < recipeItems.length; i++) {
-      if (!recipeUpdates[i]) {
-        errors.push(`Stock insuficiente de "${recipes[i].name}"`);
+    for (const item of recipeItems) {
+      if (!recipeUpdateById.get(item.recipeId!)) {
+        const recipe = recipeById.get(item.recipeId!);
+        errors.push(`Stock insuficiente de "${recipe?.name ?? 'desconocido'}"`);
       }
     }
-    for (let i = 0; i < trayItems.length; i++) {
-      if (!trayUpdates[i]) {
-        errors.push(`Stock insuficiente de bandeja "${trays[i].name}"`);
+    for (const item of trayItems) {
+      if (!trayUpdateById.get(item.trayId!)) {
+        const tray = trayById.get(item.trayId!);
+        errors.push(`Stock insuficiente de bandeja "${tray?.name ?? 'desconocido'}"`);
       }
     }
     if (errors.length > 0) {
