@@ -136,27 +136,32 @@ export async function createSale(
   try {
     session.startTransaction();
 
-    // Atomic stock deduction within the transaction — one update per unique ID
-    const [recipeUpdates, trayUpdates] = await Promise.all([
-      Promise.all(
-        recipeAggregated.map(({ id, quantity }) =>
-          Recipe.findOneAndUpdate(
-            { _id: id, stock: { $gte: quantity } },
-            { $inc: { stock: -quantity } },
-            { new: true, session },
-          ),
-        ),
-      ),
-      Promise.all(
-        trayAggregated.map(({ id, quantity }) =>
-          Tray.findOneAndUpdate(
-            { _id: id, stock: { $gte: quantity } },
-            { $inc: { stock: -quantity } },
-            { new: true, session },
-          ),
-        ),
-      ),
-    ]);
+    // Atomic stock deduction within the transaction. Operations MUST run
+    // sequentially — MongoDB requires operations within a transaction to be
+    // serialized, and parallel Promise.all triggers
+    // "Given transaction number N does not match any in-progress transactions"
+    // because each findOneAndUpdate increments txnNumber and parallel calls
+    // confuse the server-side transaction state. Confirmed against a MongoDB
+    // replica set with mongoose@8.23.0 + mongodb@6.20.0.
+    const recipeUpdates: (RecipeDocument | null)[] = [];
+    for (const { id, quantity } of recipeAggregated) {
+      const updated = await Recipe.findOneAndUpdate(
+        { _id: id, stock: { $gte: quantity } },
+        { $inc: { stock: -quantity } },
+        { new: true, session },
+      );
+      recipeUpdates.push(updated);
+    }
+
+    const trayUpdates: (TrayDocument | null)[] = [];
+    for (const { id, quantity } of trayAggregated) {
+      const updated = await Tray.findOneAndUpdate(
+        { _id: id, stock: { $gte: quantity } },
+        { $inc: { stock: -quantity } },
+        { new: true, session },
+      );
+      trayUpdates.push(updated);
+    }
 
     // Build per-ID lookup of update results (null = insufficient stock or missing)
     const recipeUpdateById = new Map<string, RecipeDocument | null>(
