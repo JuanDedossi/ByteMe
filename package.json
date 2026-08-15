@@ -16,7 +16,7 @@
     "concurrently": "^9.1.2"
   },
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "packageManager": "pnpm@9.15.4"
 }
