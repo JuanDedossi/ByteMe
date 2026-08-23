@@ -6,7 +6,8 @@
     "start": "node dist/main.js",
     "start:dev": "tsx watch src/main.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "backfill-costs": "tsx src/migrations/backfill-sale-item-costs.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

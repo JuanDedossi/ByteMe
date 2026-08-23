@@ -22,4 +22,13 @@ export interface CreateSalePayload {
 export interface SaleStats {
   weekly: number;
   monthly: number;
+  weeklyProfit: number;
+  monthlyProfit: number;
+}
+
+export interface SaleSummary {
+  count: number;
+  totalAmount: number;
+  totalCost: number;
+  profit: number;
 }

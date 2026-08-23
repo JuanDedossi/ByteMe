@@ -1,5 +1,5 @@
 import api from './api';
-import type { Sale, CreateSalePayload, SaleStats } from '../types/sale.types';
+import type { Sale, CreateSalePayload, SaleStats, SaleSummary } from '../types/sale.types';
 
 export interface SalesListResponse {
   success: boolean;
@@ -18,6 +18,11 @@ export const salesService = {
   async getStats(): Promise<SaleStats> {
     const { data } = await api.get('/sales/stats');
     return data.data as SaleStats;
+  },
+
+  async getSummary(params: { dateFrom?: string; dateTo?: string } = {}): Promise<SaleSummary> {
+    const { data } = await api.get('/sales/summary', { params });
+    return data.data as SaleSummary;
   },
 
   async create(payload: CreateSalePayload): Promise<Sale> {

@@ -26,7 +26,7 @@ export function StockSalesPage() {
 
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<SaleStats>({ weekly: 0, monthly: 0 });
+  const [stats, setStats] = useState<SaleStats>({ weekly: 0, monthly: 0, weeklyProfit: 0, monthlyProfit: 0 });
   const [modalOpen, setModalOpen] = useState(false);
   const [preSelectedId, setPreSelectedId] = useState<string | undefined>(undefined);
   const [preSelectedType, setPreSelectedType] = useState<'recipe' | 'tray' | undefined>(undefined);

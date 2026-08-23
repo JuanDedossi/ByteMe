@@ -6,6 +6,7 @@ import {
 import { getPurchaseHistoryModel } from '../models/purchase-history.model';
 import { getRecipeModel } from '../models/recipe.model';
 import { roundCurrency } from '../utils/currency';
+import { buildAccentInsensitiveRegex } from '../utils/normalize';
 
 export interface RegisterPurchaseInput {
   ingredientName: string;
@@ -71,7 +72,13 @@ export async function findAllIngredients(
   search?: string,
 ): Promise<{ data: IngredientDocument[]; total: number }> {
   const Ingredient = getIngredientModel();
-  const query = search ? { name: { $regex: search, $options: 'i' } } : {};
+  const query: Record<string, unknown> = {};
+  if (search) {
+    const normalized = buildAccentInsensitiveRegex(search);
+    if (normalized) {
+      query.name = { $regex: normalized, $options: 'i' };
+    }
+  }
 
   const [data, total] = await Promise.all([
     Ingredient.find(query)
