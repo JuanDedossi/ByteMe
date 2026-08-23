@@ -6,6 +6,7 @@ import {
 } from '../models/complement.model';
 import { getRecipeModel } from '../models/recipe.model';
 import { getTrayModel } from '../models/tray.model';
+import { buildAccentInsensitiveRegex } from '../utils/normalize';
 
 export interface CreateComplementInput {
   name: string;
@@ -34,7 +35,12 @@ export async function findAllComplements(
   const Tray = getTrayModel();
 
   const query: Record<string, unknown> = {};
-  if (search) query.name = { $regex: search, $options: 'i' };
+  if (search) {
+    const normalized = buildAccentInsensitiveRegex(search);
+    if (normalized) {
+      query.name = { $regex: normalized, $options: 'i' };
+    }
+  }
   if (isActive !== undefined) query.isActive = isActive;
 
   const [docs, total] = await Promise.all([

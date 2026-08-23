@@ -9,11 +9,16 @@ export interface ISaleItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  // Cost snapshot captured at sale time. Optional for legacy sales predating
+  // the change; aggregations fall back to 0 via $ifNull.
+  costAtSale?: number;
+  subtotalCost?: number;
 }
 
 export interface ISale {
   items: ISaleItem[];
   total: number;
+  totalCost?: number;
 }
 
 export type SaleDocument = ISale & Document;
@@ -39,6 +44,8 @@ const SaleItemSchema = new Schema(
     quantity: { type: Number, required: true, min: 0 },
     unitPrice: { type: Number, required: true, min: 0 },
     subtotal: { type: Number, required: true, min: 0 },
+    costAtSale: { type: Number, required: false, min: 0 },
+    subtotalCost: { type: Number, required: false, min: 0 },
   },
   { _id: false },
 );
@@ -47,9 +54,12 @@ const SaleSchema = new Schema<SaleDocument>(
   {
     items: { type: [SaleItemSchema], required: true },
     total: { type: Number, required: true, default: 0, min: 0 },
+    totalCost: { type: Number, required: false, default: 0, min: 0 },
   },
   { timestamps: true },
 );
+
+SaleSchema.index({ createdAt: -1 });
 
 export function getSaleModel(): mongoose.Model<SaleDocument> {
   const db = mongoose.connection.useDb(getTenantDb(), { useCache: true });

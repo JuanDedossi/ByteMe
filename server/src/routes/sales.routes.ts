@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { findAllSales, getSaleStats, createSale } from '../services/sales.service';
+import { findAllSales, getSaleStats, getSalesSummary, createSale } from '../services/sales.service';
 import { validate } from '../middleware/validate';
 import { CreateSaleSchema } from '../validation/schemas';
 
@@ -42,6 +42,28 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 router.get('/stats', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await getSaleStats();
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/summary', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // REQ-SS-1 / REQ-SS-2: dateFrom/dateTo as YYYY-MM-DD, dateTo inclusive of full local day.
+    const dateFromStr = req.query.dateFrom as string;
+    const dateToStr = req.query.dateTo as string;
+    const dateFrom = dateFromStr ? new Date(`${dateFromStr}T00:00:00`) : undefined;
+    const dateTo = dateToStr ? new Date(`${dateToStr}T00:00:00`) : undefined;
+
+    if (dateTo && !isNaN(dateTo.getTime())) {
+      dateTo.setHours(23, 59, 59, 999);
+    }
+
+    const data = await getSalesSummary(
+      dateFrom && !isNaN(dateFrom.getTime()) ? dateFrom : undefined,
+      dateTo && !isNaN(dateTo.getTime()) ? dateTo : undefined,
+    );
     res.json({ success: true, data });
   } catch (err) {
     next(err);

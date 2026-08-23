@@ -38,6 +38,8 @@ export async function findAllSales(
 export async function getSaleStats(): Promise<{
   weekly: number;
   monthly: number;
+  weeklyProfit: number;
+  monthlyProfit: number;
 }> {
   const Sale = getSaleModel();
   const now = new Date();
@@ -56,17 +58,88 @@ export async function getSaleStats(): Promise<{
   const [weeklyResult, monthlyResult] = await Promise.all([
     Sale.aggregate([
       { $match: { createdAt: { $gte: weekStart } } },
-      { $group: { _id: null, total: { $sum: '$total' } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$total' },
+          totalCost: { $sum: { $ifNull: ['$totalCost', 0] } },
+        },
+      },
     ]),
     Sale.aggregate([
       { $match: { createdAt: { $gte: monthStart } } },
-      { $group: { _id: null, total: { $sum: '$total' } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$total' },
+          totalCost: { $sum: { $ifNull: ['$totalCost', 0] } },
+        },
+      },
     ]),
   ]);
 
+  const weeklyTotal = weeklyResult[0]?.total ?? 0;
+  const monthlyTotal = monthlyResult[0]?.total ?? 0;
+  const weeklyTotalCost = weeklyResult[0]?.totalCost ?? 0;
+  const monthlyTotalCost = monthlyResult[0]?.totalCost ?? 0;
+
   return {
-    weekly: weeklyResult[0]?.total ?? 0,
-    monthly: monthlyResult[0]?.total ?? 0,
+    weekly: weeklyTotal,
+    monthly: monthlyTotal,
+    weeklyProfit: roundCurrency(weeklyTotal - weeklyTotalCost),
+    monthlyProfit: roundCurrency(monthlyTotal - monthlyTotalCost),
+  };
+}
+
+export async function getSalesSummary(
+  dateFrom?: Date,
+  dateTo?: Date,
+): Promise<{
+  count: number;
+  totalAmount: number;
+  totalCost: number;
+  profit: number;
+}> {
+  const Sale = getSaleModel();
+  const query: Record<string, unknown> = {};
+  if (dateFrom || dateTo) {
+    const range: Record<string, Date> = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    query.createdAt = range;
+  }
+
+  const [result] = await Sale.aggregate([
+    { $match: query },
+    {
+      $facet: {
+        summary: [
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              totalAmount: { $sum: '$total' },
+              totalCost: { $sum: { $ifNull: ['$totalCost', 0] } },
+            },
+          },
+          { $project: { _id: 0, count: 1, totalAmount: 1, totalCost: 1 } },
+        ],
+      },
+    },
+  ]);
+
+  const summary = result?.summary?.[0] ?? {
+    count: 0,
+    totalAmount: 0,
+    totalCost: 0,
+  };
+  const totalAmount = summary.totalAmount ?? 0;
+  const totalCost = summary.totalCost ?? 0;
+  return {
+    count: summary.count ?? 0,
+    totalAmount,
+    totalCost,
+    profit: roundCurrency(totalAmount - totalCost),
   };
 }
 
@@ -205,6 +278,11 @@ export async function createSale(
           subtotal = roundCurrency(item.quantity * recipe.sellingPrice);
         }
 
+        // Cost snapshot: recipe.costBase (ingredients + sub-recipes, no own
+        // complements) computed via cost-calculator inside findRecipeById.
+        const costAtSale = recipe.costBase;
+        const subtotalCost = roundCurrency(costAtSale * item.quantity);
+
         return {
           itemType: 'recipe' as const,
           recipeId: new Types.ObjectId(item.recipeId!),
@@ -212,12 +290,19 @@ export async function createSale(
           quantity: item.quantity,
           unitPrice,
           subtotal,
+          costAtSale,
+          subtotalCost,
         };
       }),
       ...trayItems.map((item, i) => {
         const tray = trays[i];
         const unitPrice = tray.sellingPrice;
         const subtotal = roundCurrency(item.quantity * unitPrice);
+
+        // Cost snapshot: tray.cost (recipes.costBase + own complements)
+        // computed via cost-calculator inside findTrayById.
+        const costAtSale = tray.cost;
+        const subtotalCost = roundCurrency(costAtSale * item.quantity);
 
         return {
           itemType: 'tray' as const,
@@ -226,6 +311,8 @@ export async function createSale(
           quantity: item.quantity,
           unitPrice,
           subtotal,
+          costAtSale,
+          subtotalCost,
         };
       }),
     ];
@@ -233,9 +320,12 @@ export async function createSale(
     const total = roundCurrency(
       saleItems.reduce((sum, item) => sum + item.subtotal, 0),
     );
+    const totalCost = roundCurrency(
+      saleItems.reduce((sum, item) => sum + item.subtotalCost, 0),
+    );
 
     const [result] = await Sale.create(
-      [{ items: saleItems, total }],
+      [{ items: saleItems, total, totalCost }],
       { session },
     );
 
