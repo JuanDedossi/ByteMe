@@ -302,23 +302,40 @@ async function backfillDb(dbName: string): Promise<void> {
     for (const item of items) {
       let costAtSale: number;
 
-      if (typeof item.costAtSale === 'number') {
-        // Already populated — trust the value to keep the migration idempotent.
-        costAtSale = item.costAtSale;
-      } else if (item.itemType === 'tray' && item.trayId) {
-        costAtSale = await computeTrayCost(
+      // Note: idempotency was intentionally removed. An earlier revision of
+      // this migration populated costAtSale without dividing by the recipe's
+      // yield, producing negative profit. Re-running unconditionally overwrites
+      // with the corrected per-unit calculation below.
+
+      if (item.itemType === 'tray' && item.trayId) {
+        const trayCost = await computeTrayCost(
           item.trayId,
           models,
           recipeCostMemo,
         );
+        // computeTrayCost already returns the tray's TOTAL cost (sum across
+        // its recipes × quantities + own complements), so costAtSale is the
+        // cost per single tray unit here.
+        costAtSale = trayCost;
       } else if (item.recipeId) {
-        costAtSale = await computeRecipeCostBase(
+        const costBase = await computeRecipeCostBase(
           item.recipeId,
           models,
           recipeCostMemo,
           new Set(),
           0,
         );
+        // Mirror sales.service.ts: costBase is the TOTAL recipe cost; the
+        // per-unit cost is costBase divided by yield. Without this, a sale of
+        // 1 unit from a recipe that yields 10 charges 10x the real cost.
+        const recipe = await models.Recipe.findById(item.recipeId).lean();
+        const sellUnit = (recipe as any)?.sellUnit ?? 'unidad';
+        const yieldGrams = (recipe as any)?.yieldGrams ?? 0;
+        const yieldUnits = (recipe as any)?.yieldUnits ?? 1;
+        costAtSale =
+          sellUnit === 'kg' && yieldGrams > 0
+            ? costBase / yieldGrams
+            : costBase / (yieldUnits || 1);
       } else {
         costAtSale = 0;
       }
