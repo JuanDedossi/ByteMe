@@ -278,9 +278,18 @@ export async function createSale(
           subtotal = roundCurrency(item.quantity * recipe.sellingPrice);
         }
 
-        // Cost snapshot: recipe.costBase (ingredients + sub-recipes, no own
-        // complements) computed via cost-calculator inside findRecipeById.
-        const costAtSale = recipe.costBase;
+        // Cost snapshot: costBase is the TOTAL cost of the recipe (across
+        // all yieldGrams / yieldUnits). The per-unit cost is costBase divided
+        // by the yield, mirroring the same logic in cost-calculator.ts for
+        // tray recipes. Without this, a single-unit sale of a 10-unit recipe
+        // would charge 10x the real cost and drive profit negative.
+        const yieldGrams = recipe.yieldGrams ?? 0;
+        const yieldUnits = recipe.yieldUnits ?? 1;
+        const perUnitCost =
+          recipe.sellUnit === 'kg' && yieldGrams > 0
+            ? recipe.costBase / yieldGrams
+            : recipe.costBase / (yieldUnits || 1);
+        const costAtSale = perUnitCost;
         const subtotalCost = roundCurrency(costAtSale * item.quantity);
 
         return {
