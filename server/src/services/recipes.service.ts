@@ -11,6 +11,7 @@ import {
   calculateRecipeCost,
   SubRecipeCostContext,
 } from '../utils/cost-calculator';
+import { buildAccentInsensitiveRegex } from '../utils/normalize';
 import type { IngredientDocument } from '../models/ingredient.model';
 import type { ComplementDocument } from '../models/complement.model';
 
@@ -325,7 +326,12 @@ export async function findAllRecipes(
 ): Promise<{ data: EnrichedRecipe[]; total: number }> {
   const Recipe = getRecipeModel();
   const query: Record<string, unknown> = {};
-  if (search) query.name = { $regex: search, $options: 'i' };
+  if (search) {
+    const normalized = buildAccentInsensitiveRegex(search);
+    if (normalized) {
+      query.name = { $regex: normalized, $options: 'i' };
+    }
+  }
   if (isSubRecipe !== undefined) query.isSubRecipe = isSubRecipe;
   if (hasStock) query.stock = { $gt: 0 };
 

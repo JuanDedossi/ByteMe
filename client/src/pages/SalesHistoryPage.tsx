@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { SaleHistoryCard } from '../components/sales/SaleHistoryCard';
 import { Pagination } from '../components/common/Pagination';
 import { salesService } from '../services/sales.service';
-import type { Sale } from '../types/sale.types';
+import type { Sale, SaleSummary } from '../types/sale.types';
 
 type Preset = 'today' | 'week' | 'month' | 'all';
 
@@ -36,7 +36,6 @@ function fmt(v: number) {
 
 export function SalesHistoryPage() {
   const [sales, setSales] = useState<Sale[]>([]);
-  const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -44,6 +43,10 @@ export function SalesHistoryPage() {
   const [preset, setPreset] = useState<Preset>('month');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  const [summary, setSummary] = useState<SaleSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const limit = 20;
 
@@ -64,7 +67,6 @@ export function SalesHistoryPage() {
       }
       const res = await salesService.list(params);
       setSales(res.data);
-      setTotal(res.total);
       setTotalPages(res.totalPages);
     } finally {
       setLoading(false);
@@ -74,6 +76,33 @@ export function SalesHistoryPage() {
   useEffect(() => {
     void fetchSales();
   }, [fetchSales]);
+
+  const fetchSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
+      const params: { dateFrom?: string; dateTo?: string } = {};
+      if (preset !== 'all') {
+        const presetDates = getPresetDates(preset);
+        if (presetDates.dateFrom) params.dateFrom = presetDates.dateFrom;
+        if (presetDates.dateTo) params.dateTo = presetDates.dateTo;
+      } else {
+        if (dateFrom) params.dateFrom = dateFrom;
+        if (dateTo) params.dateTo = dateTo;
+      }
+      const data = await salesService.getSummary(params);
+      setSummary(data);
+      setSummaryError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al cargar el resumen';
+      setSummaryError(message);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [preset, dateFrom, dateTo]);
+
+  useEffect(() => {
+    void fetchSummary();
+  }, [fetchSummary]);
 
   const handlePreset = (p: Preset) => {
     setPreset(p);
@@ -88,8 +117,6 @@ export function SalesHistoryPage() {
     if (field === 'from') setDateFrom(value);
     else setDateTo(value);
   };
-
-  const totalAmount = sales.reduce((sum, s) => sum + s.total, 0);
 
   const presets: { key: Preset; label: string }[] = [
     { key: 'today', label: 'Hoy' },
@@ -185,64 +212,56 @@ export function SalesHistoryPage() {
         }}
       >
         {/* Resumen del período */}
-        {!loading && total > 0 && (
+        <div
+          style={{
+            background: 'var(--color-surface-container-low)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-md)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-xs)',
+          }}
+        >
           <div
             style={{
-              background: 'var(--color-surface-container-low)',
-              borderRadius: 'var(--radius-md)',
-              padding: 'var(--space-md)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 'var(--space-md)',
             }}
           >
-            <div>
-              <p
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.75rem',
-                  color: 'var(--color-text-secondary)',
-                  margin: 0,
-                }}
-              >
-                {total} {total === 1 ? 'venta' : 'ventas'}
-              </p>
-              <p
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.75rem',
-                  color: 'var(--color-text-secondary)',
-                  margin: '2px 0 0',
-                }}
-              >
-                en este período
-              </p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <p
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.75rem',
-                  color: 'var(--color-text-secondary)',
-                  margin: 0,
-                }}
-              >
-                Total (página)
-              </p>
-              <p
-                style={{
-                  fontFamily: 'var(--font-headline)',
-                  fontSize: '1.2rem',
-                  fontWeight: 700,
-                  color: 'var(--color-primary)',
-                  margin: '2px 0 0',
-                }}
-              >
-                {fmt(totalAmount)}
-              </p>
-            </div>
+            {summaryLoading ? (
+              <>
+                <SummaryCell label="Cantidad" value="Cargando..." />
+                <SummaryCell label="Total" value="Cargando..." />
+                <SummaryCell label="Ganancia" value="Cargando..." />
+              </>
+            ) : summary ? (
+              <>
+                <SummaryCell label="Cantidad" value={String(summary.count)} />
+                <SummaryCell label="Total" value={fmt(summary.totalAmount)} />
+                <SummaryCell label="Ganancia" value={fmt(summary.profit)} />
+              </>
+            ) : (
+              <>
+                <SummaryCell label="Cantidad" value="—" />
+                <SummaryCell label="Total" value="—" />
+                <SummaryCell label="Ganancia" value="—" />
+              </>
+            )}
           </div>
-        )}
+          {summaryError && (
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.7rem',
+                color: 'var(--color-warning)',
+                marginTop: '2px',
+              }}
+            >
+              {summaryError}
+            </span>
+          )}
+        </div>
 
         {/* Lista */}
         {loading ? (
@@ -279,6 +298,35 @@ export function SalesHistoryPage() {
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         )}
       </div>
+    </div>
+  );
+}
+
+function SummaryCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+      <span
+        style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: '0.7rem',
+          fontWeight: 600,
+          color: 'var(--color-text-secondary)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontFamily: 'var(--font-headline)',
+          fontSize: '1.1rem',
+          fontWeight: 700,
+          color: 'var(--color-text-primary)',
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

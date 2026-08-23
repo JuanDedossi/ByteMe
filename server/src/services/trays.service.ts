@@ -12,6 +12,7 @@ import {
   calculateTrayCost,
   SubRecipeCostContext,
 } from '../utils/cost-calculator';
+import { buildAccentInsensitiveRegex } from '../utils/normalize';
 import type { ComplementDocument } from '../models/complement.model';
 
 export interface EnrichedTrayComplement {
@@ -174,9 +175,13 @@ export async function findAllTrays(
   hasStock?: boolean,
 ): Promise<{ data: EnrichedTray[]; total: number }> {
   const Tray = getTrayModel();
-  const query: Record<string, unknown> = search
-    ? { name: { $regex: search, $options: 'i' } }
-    : {};
+  const query: Record<string, unknown> = {};
+  if (search) {
+    const normalized = buildAccentInsensitiveRegex(search);
+    if (normalized) {
+      query.name = { $regex: normalized, $options: 'i' };
+    }
+  }
   if (hasStock) query.stock = { $gt: 0 };
 
   const total = await Tray.countDocuments(query);

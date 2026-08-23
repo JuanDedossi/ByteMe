@@ -9,14 +9,33 @@ export function ProfitMetrics({ stats }: ProfitMetricsProps) {
     `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
-      <MetricCard label="Ganancia semanal" value={fmt(stats.weekly)} />
-      <MetricCard label="Ganancia mensual" value={fmt(stats.monthly)} />
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gridTemplateRows: '1fr 1fr',
+        gap: 'var(--space-md)',
+      }}
+    >
+      <MetricCard label="Ganancia semanal" value={fmt(stats.weekly)} accent="success" />
+      <MetricCard label="Ganancia mensual" value={fmt(stats.monthly)} accent="success" />
+      <MetricCard label="Ganancia neta semanal" value={fmt(stats.weeklyProfit)} accent="secondary" />
+      <MetricCard label="Ganancia neta mensual" value={fmt(stats.monthlyProfit)} accent="secondary" />
     </div>
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({
+  label,
+  value,
+  accent = 'success',
+}: {
+  label: string;
+  value: string;
+  accent?: 'success' | 'secondary';
+}) {
+  const valueColor = accent === 'secondary' ? 'var(--color-tertiary)' : 'var(--color-success)';
+
   return (
     <div
       style={{
@@ -27,6 +46,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
         display: 'flex',
         flexDirection: 'column',
         gap: 'var(--space-xs)',
+        borderLeft: accent === 'secondary' ? '4px solid var(--color-tertiary)' : '4px solid transparent',
       }}
     >
       <span
@@ -46,7 +66,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
           fontFamily: 'var(--font-body)',
           fontSize: '1.1rem',
           fontWeight: 700,
-          color: 'var(--color-success)',
+          color: valueColor,
         }}
       >
         {value}
