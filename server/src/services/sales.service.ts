@@ -143,6 +143,123 @@ export async function getSalesSummary(
   };
 }
 
+export interface BreakdownItem {
+  type: 'recipe' | 'tray';
+  name: string;
+  quantity: number;
+  revenue: number;
+  profit: number;
+}
+
+export async function getSalesBreakdown({
+  dateFrom,
+  dateTo,
+  limit = 10,
+  offset = 0,
+}: {
+  dateFrom?: Date;
+  dateTo?: Date;
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: BreakdownItem[]; total: number }> {
+  const Sale = getSaleModel();
+  const match: Record<string, unknown> = {};
+  if (dateFrom || dateTo) {
+    const range: Record<string, Date> = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    match.createdAt = range;
+  }
+
+  const [result] = await Sale.aggregate([
+    { $match: match },
+    { $unwind: '$items' },
+    {
+      $group: {
+        _id: {
+          type: '$items.itemType',
+          id: { $ifNull: ['$items.recipeId', '$items.trayId'] },
+        },
+        quantity: { $sum: '$items.quantity' },
+        revenue: { $sum: '$items.subtotal' },
+        cost: { $sum: { $ifNull: ['$items.subtotalCost', 0] } },
+        snapshotName: { $first: '$items.recipeName' },
+      },
+    },
+    {
+      $lookup: {
+        from: 'recipes',
+        let: { id: '$_id.id', type: '$_id.type' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$_id', '$$id'] },
+                  { $eq: ['$$type', 'recipe'] },
+                ],
+              },
+            },
+          },
+          { $project: { name: 1 } },
+        ],
+        as: 'recipe',
+      },
+    },
+    {
+      $lookup: {
+        from: 'trays',
+        let: { id: '$_id.id', type: '$_id.type' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$_id', '$$id'] },
+                  { $eq: ['$$type', 'tray'] },
+                ],
+              },
+            },
+          },
+          { $project: { name: 1 } },
+        ],
+        as: 'tray',
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        type: '$_id.type',
+        name: {
+          $ifNull: [
+            { $arrayElemAt: ['$recipe.name', 0] },
+            { $ifNull: [{ $arrayElemAt: ['$tray.name', 0] }, '$snapshotName'] },
+          ],
+        },
+        quantity: 1,
+        revenue: 1,
+        cost: 1,
+      },
+    },
+    { $sort: { quantity: -1, revenue: -1 } },
+    {
+      $facet: {
+        items: [{ $skip: offset }, { $limit: limit }],
+        total: [{ $count: 'c' }],
+      },
+    },
+  ]);
+
+  const items = (result?.items ?? []).map((item: Omit<BreakdownItem, 'profit'> & { cost: number }) => ({
+    type: item.type,
+    name: item.name,
+    quantity: item.quantity,
+    revenue: item.revenue,
+    profit: roundCurrency(item.revenue - item.cost),
+  }));
+  return { items, total: result?.total?.[0]?.c ?? 0 };
+}
+
 export async function createSale(
   dto: CreateSaleInput,
 ): Promise<SaleDocument> {
