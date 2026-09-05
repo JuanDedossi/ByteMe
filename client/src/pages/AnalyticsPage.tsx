@@ -181,6 +181,6 @@ const tableCellStyle = { fontFamily: 'var(--font-body)', fontSize: '0.9rem', col
 const stateStyle = { textAlign: 'center' as const, padding: 'var(--space-2xl)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)' };
 const errorStyle = { margin: 0, color: 'var(--color-warning)', fontFamily: 'var(--font-body)', fontSize: '0.8rem' };
 const loadMoreStyle = { display: 'block', margin: 'var(--space-md) auto 0', padding: 'var(--space-sm) var(--space-lg)', border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--color-primary)', color: 'var(--color-on-primary)', fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer' };
-const sortRowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--space-sm)' };
+const sortRowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 'var(--space-sm)' };
 const sortLabelStyle = { fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' };
 const sortSelectStyle = { fontFamily: 'var(--font-body)', fontSize: '0.85rem', padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1.5px solid rgba(218, 193, 184, 0.5)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', cursor: 'pointer', outline: 'none' };
