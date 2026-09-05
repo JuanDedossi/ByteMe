@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { SaleHistoryCard } from '../components/sales/SaleHistoryCard';
 import { Pagination } from '../components/common/Pagination';
 import { DateRangeFilter } from '../components/common/DateRangeFilter';
+import { MetricCard } from '../components/common/MetricCard';
 import { salesService } from '../services/sales.service';
 import type { Sale, SaleSummary } from '../types/sale.types';
 import { getPresetDates, type Preset } from '../utils/datePresets';
@@ -147,27 +148,27 @@ export function SalesHistoryPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
               gap: 'var(--space-md)',
             }}
           >
             {summaryLoading ? (
               <>
-                <SummaryCell label="Cantidad" value="Cargando..." />
-                <SummaryCell label="Total" value="Cargando..." />
-                <SummaryCell label="Ganancia" value="Cargando..." />
+                <MetricCard label="Cantidad" value="Cargando..." accent="neutral" />
+                <MetricCard label="Total" value="Cargando..." accent="success" />
+                <MetricCard label="Ganancia" value="Cargando..." accent="secondary" />
               </>
             ) : summary ? (
               <>
-                <SummaryCell label="Cantidad" value={String(summary.count)} />
-                <SummaryCell label="Total" value={fmt(summary.totalAmount)} />
-                <SummaryCell label="Ganancia" value={fmt(summary.profit)} />
+                <MetricCard label="Cantidad" value={String(summary.count)} accent="neutral" />
+                <MetricCard label="Total" value={fmt(summary.totalAmount)} accent="success" />
+                <MetricCard label="Ganancia" value={fmt(summary.profit)} accent="secondary" />
               </>
             ) : (
               <>
-                <SummaryCell label="Cantidad" value="—" />
-                <SummaryCell label="Total" value="—" />
-                <SummaryCell label="Ganancia" value="—" />
+                <MetricCard label="Cantidad" value="—" accent="neutral" />
+                <MetricCard label="Total" value="—" accent="success" />
+                <MetricCard label="Ganancia" value="—" accent="secondary" />
               </>
             )}
           </div>
@@ -220,35 +221,6 @@ export function SalesHistoryPage() {
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         )}
       </div>
-    </div>
-  );
-}
-
-function SummaryCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-      <span
-        style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: '0.7rem',
-          fontWeight: 600,
-          color: 'var(--color-text-secondary)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-        }}
-      >
-        {label}
-      </span>
-      <span
-        style={{
-          fontFamily: 'var(--font-headline)',
-          fontSize: '1.1rem',
-          fontWeight: 700,
-          color: 'var(--color-text-primary)',
-        }}
-      >
-        {value}
-      </span>
     </div>
   );
 }
