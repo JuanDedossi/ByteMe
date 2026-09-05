@@ -160,7 +160,7 @@ export function SalesHistoryPage() {
               </>
             ) : summary ? (
               <>
-                <MetricCard label="Cantidad" value={String(summary.totalQuantity)} accent="neutral" />
+                <MetricCard label="Cantidad items" value={String(summary.totalQuantity)} accent="neutral" />
                 <MetricCard label="Total" value={fmt(summary.totalAmount)} accent="success" />
                 <MetricCard label="Ganancia" value={fmt(summary.profit)} accent="secondary" />
               </>
