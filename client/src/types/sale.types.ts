@@ -31,4 +31,21 @@ export interface SaleSummary {
   totalAmount: number;
   totalCost: number;
   profit: number;
+  totalQuantity: number;
+}
+
+export type BreakdownSortBy = 'quantity' | 'profit' | 'name' | 'lastSoldAt';
+
+export interface BreakdownItem {
+  type: 'recipe' | 'tray';
+  name: string;
+  quantity: number;
+  revenue: number;
+  profit: number;
+  lastSoldAt: string;
+}
+
+export interface BreakdownResponse {
+  items: BreakdownItem[];
+  total: number;
 }

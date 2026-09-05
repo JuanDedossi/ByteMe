@@ -1,34 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { SaleHistoryCard } from '../components/sales/SaleHistoryCard';
 import { Pagination } from '../components/common/Pagination';
+import { DateRangeFilter } from '../components/common/DateRangeFilter';
+import { MetricCard } from '../components/common/MetricCard';
 import { salesService } from '../services/sales.service';
 import type { Sale, SaleSummary } from '../types/sale.types';
-
-type Preset = 'today' | 'week' | 'month' | 'all';
-
-function getPresetDates(preset: Preset): { dateFrom?: string; dateTo?: string } {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const toDateStr = (d: Date) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
-  if (preset === 'today') {
-    const today = toDateStr(now);
-    return { dateFrom: today, dateTo: today };
-  }
-  if (preset === 'week') {
-    const day = now.getDay();
-    const diffToMonday = day === 0 ? 6 : day - 1;
-    const from = new Date(now);
-    from.setDate(now.getDate() - diffToMonday);
-    return { dateFrom: toDateStr(from), dateTo: toDateStr(now) };
-  }
-  if (preset === 'month') {
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { dateFrom: toDateStr(from), dateTo: toDateStr(now) };
-  }
-  return {};
-}
+import { getPresetDates, type Preset } from '../utils/datePresets';
 
 function fmt(v: number) {
   return `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -118,13 +95,6 @@ export function SalesHistoryPage() {
     else setDateTo(value);
   };
 
-  const presets: { key: Preset; label: string }[] = [
-    { key: 'today', label: 'Hoy' },
-    { key: 'week', label: 'Esta semana' },
-    { key: 'month', label: 'Este mes' },
-    { key: 'all', label: 'Todo' },
-  ];
-
   return (
     <div style={{ paddingBottom: '100px' }}>
       {/* Header */}
@@ -146,60 +116,13 @@ export function SalesHistoryPage() {
           Historial de Ventas
         </h1>
 
-        {/* Presets */}
-        <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
-          {presets.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => handlePreset(key)}
-              style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.8rem',
-                fontWeight: preset === key ? 600 : 400,
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-full)',
-                border: `1.5px solid ${preset === key ? 'var(--color-primary)' : 'rgba(218, 193, 184, 0.5)'}`,
-                background: preset === key ? 'var(--color-primary)' : 'transparent',
-                color: preset === key ? 'var(--color-on-primary)' : 'var(--color-text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Rango custom */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 'var(--space-sm)',
-            marginTop: 'var(--space-sm)',
-            alignItems: 'center',
-          }}
-        >
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => handleDateChange('from', e.target.value)}
-            style={dateInputStyle}
-          />
-          <span
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.8rem',
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            —
-          </span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => handleDateChange('to', e.target.value)}
-            style={dateInputStyle}
-          />
-        </div>
+        <DateRangeFilter
+          preset={preset}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onPreset={handlePreset}
+          onDateChange={handleDateChange}
+        />
       </div>
 
       {/* Contenido */}
@@ -225,27 +148,27 @@ export function SalesHistoryPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
               gap: 'var(--space-md)',
             }}
           >
             {summaryLoading ? (
               <>
-                <SummaryCell label="Cantidad" value="Cargando..." />
-                <SummaryCell label="Total" value="Cargando..." />
-                <SummaryCell label="Ganancia" value="Cargando..." />
+                <MetricCard label="Cantidad" value="Cargando..." accent="neutral" />
+                <MetricCard label="Total" value="Cargando..." accent="success" />
+                <MetricCard label="Ganancia" value="Cargando..." accent="secondary" />
               </>
             ) : summary ? (
               <>
-                <SummaryCell label="Cantidad" value={String(summary.count)} />
-                <SummaryCell label="Total" value={fmt(summary.totalAmount)} />
-                <SummaryCell label="Ganancia" value={fmt(summary.profit)} />
+                <MetricCard label="Cantidad items" value={String(summary.totalQuantity)} accent="neutral" />
+                <MetricCard label="Total" value={fmt(summary.totalAmount)} accent="success" />
+                <MetricCard label="Ganancia" value={fmt(summary.profit)} accent="secondary" />
               </>
             ) : (
               <>
-                <SummaryCell label="Cantidad" value="—" />
-                <SummaryCell label="Total" value="—" />
-                <SummaryCell label="Ganancia" value="—" />
+                <MetricCard label="Cantidad" value="—" accent="neutral" />
+                <MetricCard label="Total" value="—" accent="success" />
+                <MetricCard label="Ganancia" value="—" accent="secondary" />
               </>
             )}
           </div>
@@ -301,44 +224,3 @@ export function SalesHistoryPage() {
     </div>
   );
 }
-
-function SummaryCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-      <span
-        style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: '0.7rem',
-          fontWeight: 600,
-          color: 'var(--color-text-secondary)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-        }}
-      >
-        {label}
-      </span>
-      <span
-        style={{
-          fontFamily: 'var(--font-headline)',
-          fontSize: '1.1rem',
-          fontWeight: 700,
-          color: 'var(--color-text-primary)',
-        }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-const dateInputStyle: React.CSSProperties = {
-  flex: 1,
-  fontFamily: 'var(--font-body)',
-  fontSize: '0.8rem',
-  padding: '6px 10px',
-  borderRadius: 'var(--radius-sm)',
-  border: '1.5px solid rgba(218, 193, 184, 0.4)',
-  background: 'rgba(255,255,255,0.5)',
-  color: 'var(--color-text-primary)',
-  outline: 'none',
-};

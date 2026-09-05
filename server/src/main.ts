@@ -2,10 +2,9 @@
 // serverless functions in UTC; without this, local-time date logic in
 // sales.stats / sales.routes would compute week/month boundaries in UTC,
 // shifting the weekly counter by the TZ offset for users not on UTC.
-// Override at runtime by setting the TZ env var (e.g. in Vercel project settings).
-if (!process.env.TZ) {
-  process.env.TZ = 'America/Argentina/Buenos_Aires';
-}
+// Always force Argentina TZ — no override path — so a stray TZ env var
+// (set explicitly or implicitly by Vercel) can never shift our date math.
+process.env.TZ = 'America/Argentina/Buenos_Aires';
 
 import app from './app';
 import { connectDB } from './db';

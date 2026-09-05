@@ -1,23 +1,24 @@
 import { useState } from 'react';
 import { MdShoppingCart } from 'react-icons/md';
 import { StockEditor } from '../common/StockEditor';
+import { InlinePriceEdit } from '../common/InlinePriceEdit';
 import type { Recipe } from '../../types/recipe.types';
 
 interface RecipeStockCardProps {
   recipe: Recipe;
   onStockChange: (id: string, stock: number) => Promise<void>;
+  onPriceChange: (id: string, newPrice: number) => Promise<void>;
   onSell: (recipe: Recipe) => void;
 }
 
 export function RecipeStockCard({
   recipe,
   onStockChange,
+  onPriceChange,
   onSell,
 }: RecipeStockCardProps) {
   const [saving, setSaving] = useState(false);
-
-  const fmt = (v: number) =>
-    `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const [savingPrice, setSavingPrice] = useState(false);
 
   const handleStockChange = async (stock: number) => {
     setSaving(true);
@@ -25,6 +26,19 @@ export function RecipeStockCard({
       await onStockChange(recipe._id, stock);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePriceSave = async (displayPrice: number) => {
+    // For kg recipes the card shows pricePer100g; the API stores per-kg
+    // as `customSellingPrice`. For unit recipes the displayed value is
+    // already what the API expects.
+    const apiPrice = recipe.sellUnit === 'kg' ? displayPrice * 10 : displayPrice;
+    setSavingPrice(true);
+    try {
+      await onPriceChange(recipe._id, apiPrice);
+    } finally {
+      setSavingPrice(false);
     }
   };
 
@@ -69,29 +83,12 @@ export function RecipeStockCard({
         >
           {recipe.name}
         </p>
-        <p
-          style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            color: 'var(--color-primary)',
-            margin: 'var(--space-xs) 0 0',
-          }}
-        >
-          {isWeight ? `${fmt(recipe.pricePer100g)}` : fmt(recipe.sellingPrice)}
-        </p>
-        {isWeight && (
-          <p
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.7rem',
-              color: 'var(--color-text-secondary)',
-              margin: 0,
-            }}
-          >
-            {fmt(recipe.sellingPrice)}/kg
-          </p>
-        )}
+        <InlinePriceEdit
+          value={isWeight ? recipe.pricePer100g : recipe.sellingPrice}
+          onSave={handlePriceSave}
+          disabled={savingPrice}
+          suffix={isWeight ? `${(isWeight ? recipe.pricePer100g * 10 : recipe.sellingPrice).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/kg` : undefined}
+        />
       </div>
 
       {/* Stock editor */}

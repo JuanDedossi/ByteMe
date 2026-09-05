@@ -99,6 +99,7 @@ export async function getSalesSummary(
   totalAmount: number;
   totalCost: number;
   profit: number;
+  totalQuantity: number;
 }> {
   const Sale = getSaleModel();
   const query: Record<string, unknown> = {};
@@ -124,6 +125,16 @@ export async function getSalesSummary(
           },
           { $project: { _id: 0, count: 1, totalAmount: 1, totalCost: 1 } },
         ],
+        itemsTotal: [
+          { $unwind: '$items' },
+          {
+            $group: {
+              _id: null,
+              totalQuantity: { $sum: '$items.quantity' },
+            },
+          },
+          { $project: { _id: 0, totalQuantity: 1 } },
+        ],
       },
     },
   ]);
@@ -133,6 +144,7 @@ export async function getSalesSummary(
     totalAmount: 0,
     totalCost: 0,
   };
+  const itemsTotal = result?.itemsTotal?.[0] ?? { totalQuantity: 0 };
   const totalAmount = summary.totalAmount ?? 0;
   const totalCost = summary.totalCost ?? 0;
   return {
@@ -140,7 +152,143 @@ export async function getSalesSummary(
     totalAmount,
     totalCost,
     profit: roundCurrency(totalAmount - totalCost),
+    totalQuantity: itemsTotal.totalQuantity ?? 0,
   };
+}
+
+export type BreakdownSortBy = 'quantity' | 'profit' | 'name' | 'lastSoldAt';
+
+export interface BreakdownItem {
+  type: 'recipe' | 'tray';
+  name: string;
+  quantity: number;
+  revenue: number;
+  profit: number;
+  lastSoldAt: string;
+}
+
+export async function getSalesBreakdown({
+  dateFrom,
+  dateTo,
+  limit = 10,
+  offset = 0,
+  sortBy = 'quantity',
+}: {
+  dateFrom?: Date;
+  dateTo?: Date;
+  limit?: number;
+  offset?: number;
+  sortBy?: BreakdownSortBy;
+}): Promise<{ items: BreakdownItem[]; total: number }> {
+  const Sale = getSaleModel();
+  const match: Record<string, unknown> = {};
+  if (dateFrom || dateTo) {
+    const range: Record<string, Date> = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    match.createdAt = range;
+  }
+
+  const sortStage: Record<string, 1 | -1> =
+    sortBy === 'profit'
+      ? { profit: -1, quantity: -1, revenue: -1 }
+      : sortBy === 'name'
+        ? { name: 1, quantity: -1, revenue: -1 }
+        : sortBy === 'lastSoldAt'
+          ? { lastSoldAt: -1, quantity: -1, revenue: -1 }
+          : { quantity: -1, revenue: -1 };
+
+  const [result] = await Sale.aggregate([
+    { $match: match },
+    { $unwind: '$items' },
+    {
+      $group: {
+        _id: {
+          type: '$items.itemType',
+          id: { $ifNull: ['$items.recipeId', '$items.trayId'] },
+        },
+        quantity: { $sum: '$items.quantity' },
+        revenue: { $sum: '$items.subtotal' },
+        cost: { $sum: { $ifNull: ['$items.subtotalCost', 0] } },
+        snapshotName: { $first: '$items.recipeName' },
+        lastSoldAt: { $max: '$createdAt' },
+      },
+    },
+    {
+      $lookup: {
+        from: 'recipes',
+        let: { id: '$_id.id', type: '$_id.type' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$_id', '$$id'] },
+                  { $eq: ['$$type', 'recipe'] },
+                ],
+              },
+            },
+          },
+          { $project: { name: 1 } },
+        ],
+        as: 'recipe',
+      },
+    },
+    {
+      $lookup: {
+        from: 'trays',
+        let: { id: '$_id.id', type: '$_id.type' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$_id', '$$id'] },
+                  { $eq: ['$$type', 'tray'] },
+                ],
+              },
+            },
+          },
+          { $project: { name: 1 } },
+        ],
+        as: 'tray',
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        type: '$_id.type',
+        name: {
+          $ifNull: [
+            { $arrayElemAt: ['$recipe.name', 0] },
+            { $ifNull: [{ $arrayElemAt: ['$tray.name', 0] }, '$snapshotName'] },
+          ],
+        },
+        quantity: 1,
+        revenue: 1,
+        cost: 1,
+        profit: { $subtract: ['$revenue', '$cost'] },
+        lastSoldAt: 1,
+      },
+    },
+    { $sort: sortStage },
+    {
+      $facet: {
+        items: [{ $skip: offset }, { $limit: limit }],
+        total: [{ $count: 'c' }],
+      },
+    },
+  ]);
+
+  const items = (result?.items ?? []).map((item: Omit<BreakdownItem, 'profit' | 'lastSoldAt'> & { cost: number; lastSoldAt: Date | string }) => ({
+    type: item.type,
+    name: item.name,
+    quantity: item.quantity,
+    revenue: item.revenue,
+    profit: roundCurrency(item.revenue - item.cost),
+    lastSoldAt: new Date(item.lastSoldAt).toISOString(),
+  }));
+  return { items, total: result?.total?.[0]?.c ?? 0 };
 }
 
 export async function createSale(

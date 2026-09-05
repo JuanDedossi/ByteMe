@@ -8,19 +8,21 @@ import {
   MdGridView,
   MdReceipt,
   MdExtension,
+  MdBarChart,
 } from 'react-icons/md';
 
 const USER_LABEL_KEY = 'mordisquitos-user';
 
 const navItems = [
+  { path: '/stock', icon: MdInventory2, label: 'Stock' },
+  { path: '/recetas', icon: MdMenuBook, label: 'Recetas' },
   { path: '/ingredientes', icon: MdKitchen, label: 'Ingredientes' },
   { path: '/complementos', icon: MdExtension, label: 'Complementos' },
-  { path: '/recetas', icon: MdMenuBook, label: 'Recetas' },
   { path: '/bandejas', icon: MdGridView, label: 'Bandejas' },
-  { path: '/stock', icon: MdInventory2, label: 'Stock' },
+  { path: '/historial', icon: MdReceipt, label: 'Historial' },
+  { path: '/analytics', icon: MdBarChart, label: 'Analytics' },
   { path: '/markups', icon: MdTrendingUp, label: 'Markups' },
   { path: '/calculadora', icon: MdCalculate, label: 'Calculadora' },
-  { path: '/historial', icon: MdReceipt, label: 'Historial' },
 ];
 
 export function BottomNav() {
