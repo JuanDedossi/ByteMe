@@ -32,7 +32,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<PinScreen />} />
       <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<Navigate to="/ingredientes" replace />} />
+        <Route path="/" element={<Navigate to="/stock" replace />} />
         <Route path="/ingredientes" element={<IngredientsPage />} />
         <Route path="/recetas" element={<RecipesPage />} />
         <Route path="/markups" element={<ProfitRulesPage />} />
