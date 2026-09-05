@@ -1,23 +1,23 @@
 import { useState } from 'react';
 import { MdShoppingCart } from 'react-icons/md';
 import { StockEditor } from '../common/StockEditor';
+import { InlinePriceEdit } from '../common/InlinePriceEdit';
 import type { Tray } from '../../types/tray.types';
 
 interface TrayStockCardProps {
   tray: Tray;
   onStockChange: (id: string, stock: number) => Promise<void>;
+  onPriceChange: (id: string, newPrice: number) => Promise<void>;
   onSell: (tray: Tray) => void;
 }
 
 export function TrayStockCard({
   tray,
   onStockChange,
+  onPriceChange,
   onSell,
 }: TrayStockCardProps) {
   const [saving, setSaving] = useState(false);
-
-  const fmt = (v: number) =>
-    `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const handleStockChange = async (stock: number) => {
     setSaving(true);
@@ -26,6 +26,10 @@ export function TrayStockCard({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handlePriceSave = async (newPrice: number) => {
+    await onPriceChange(tray._id, newPrice);
   };
 
   const stockColor =
@@ -49,36 +53,18 @@ export function TrayStockCard({
     >
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-xs)',
-          }}
-        >
-          <p
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.95rem',
-              fontWeight: 600,
-              color: 'var(--color-text-primary)',
-              margin: 0,
-            }}
-          >
-            {tray.name}
-          </p>
-        </div>
         <p
           style={{
             fontFamily: 'var(--font-body)',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            color: 'var(--color-primary)',
-            margin: 'var(--space-xs) 0 0',
+            fontSize: '0.95rem',
+            fontWeight: 600,
+            color: 'var(--color-text-primary)',
+            margin: 0,
           }}
         >
-          {fmt(tray.sellingPrice)}
+          {tray.name}
         </p>
+        <InlinePriceEdit value={tray.sellingPrice} onSave={handlePriceSave} />
       </div>
 
       {/* Stock editor */}

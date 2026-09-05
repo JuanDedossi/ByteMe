@@ -88,6 +88,16 @@ export function StockSalesPage() {
     setTrays((prev) => prev.map((t) => (t._id === id ? updated : t)));
   };
 
+  const handleRecipePriceChange = async (id: string, newPrice: number) => {
+    const updated = await recipesService.updatePrice(id, newPrice);
+    setRecipes((prev) => prev.map((r) => (r._id === id ? updated : r)));
+  };
+
+  const handleTrayPriceChange = async (id: string, newPrice: number) => {
+    const updated = await traysService.updatePrice(id, newPrice);
+    setTrays((prev) => prev.map((t) => (t._id === id ? updated : t)));
+  };
+
   const openSaleModal = (item?: Recipe | Tray, type?: 'recipe' | 'tray') => {
     setPreSelectedId(item?._id);
     setPreSelectedType(type);
@@ -156,6 +166,7 @@ export function StockSalesPage() {
                 key={recipe._id}
                 recipe={recipe}
                 onStockChange={handleRecipeStockChange}
+                onPriceChange={handleRecipePriceChange}
                 onSell={(r) => openSaleModal(r, 'recipe')}
               />
             ))}
@@ -199,6 +210,7 @@ export function StockSalesPage() {
                     key={tray._id}
                     tray={tray}
                     onStockChange={handleTrayStockChange}
+                    onPriceChange={handleTrayPriceChange}
                     onSell={(t) => openSaleModal(t, 'tray')}
                   />
                 ))}
