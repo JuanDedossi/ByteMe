@@ -1,5 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { findAllSales, getSaleStats, getSalesSummary, createSale } from '../services/sales.service';
+import {
+  findAllSales,
+  getSaleStats,
+  getSalesSummary,
+  getSalesBreakdown,
+  createSale,
+} from '../services/sales.service';
 import { validate } from '../middleware/validate';
 import { CreateSaleSchema } from '../validation/schemas';
 
@@ -64,6 +70,34 @@ router.get('/summary', async (req: Request, res: Response, next: NextFunction) =
       dateFrom && !isNaN(dateFrom.getTime()) ? dateFrom : undefined,
       dateTo && !isNaN(dateTo.getTime()) ? dateTo : undefined,
     );
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/breakdown', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const dateFromStr = req.query.dateFrom as string;
+    const dateToStr = req.query.dateTo as string;
+    const dateFrom = dateFromStr ? new Date(`${dateFromStr}T00:00:00`) : undefined;
+    const dateTo = dateToStr ? new Date(`${dateToStr}T00:00:00`) : undefined;
+
+    if (dateTo && !isNaN(dateTo.getTime())) {
+      dateTo.setHours(23, 59, 59, 999);
+    }
+
+    const parsedLimit = parseInt(req.query.limit as string, 10);
+    const parsedOffset = parseInt(req.query.offset as string, 10);
+    const limit = Math.min(100, parsedLimit > 0 ? parsedLimit : 10);
+    const offset = Math.max(0, parsedOffset || 0);
+
+    const data = await getSalesBreakdown({
+      dateFrom: dateFrom && !isNaN(dateFrom.getTime()) ? dateFrom : undefined,
+      dateTo: dateTo && !isNaN(dateTo.getTime()) ? dateTo : undefined,
+      limit,
+      offset,
+    });
     res.json({ success: true, data });
   } catch (err) {
     next(err);
