@@ -99,6 +99,7 @@ export async function getSalesSummary(
   totalAmount: number;
   totalCost: number;
   profit: number;
+  totalQuantity: number;
 }> {
   const Sale = getSaleModel();
   const query: Record<string, unknown> = {};
@@ -124,6 +125,16 @@ export async function getSalesSummary(
           },
           { $project: { _id: 0, count: 1, totalAmount: 1, totalCost: 1 } },
         ],
+        itemsTotal: [
+          { $unwind: '$items' },
+          {
+            $group: {
+              _id: null,
+              totalQuantity: { $sum: '$items.quantity' },
+            },
+          },
+          { $project: { _id: 0, totalQuantity: 1 } },
+        ],
       },
     },
   ]);
@@ -133,6 +144,7 @@ export async function getSalesSummary(
     totalAmount: 0,
     totalCost: 0,
   };
+  const itemsTotal = result?.itemsTotal?.[0] ?? { totalQuantity: 0 };
   const totalAmount = summary.totalAmount ?? 0;
   const totalCost = summary.totalCost ?? 0;
   return {
@@ -140,6 +152,7 @@ export async function getSalesSummary(
     totalAmount,
     totalCost,
     profit: roundCurrency(totalAmount - totalCost),
+    totalQuantity: itemsTotal.totalQuantity ?? 0,
   };
 }
 

@@ -31,6 +31,7 @@ export interface SaleSummary {
   totalAmount: number;
   totalCost: number;
   profit: number;
+  totalQuantity: number;
 }
 
 export type BreakdownSortBy = 'quantity' | 'profit' | 'name' | 'lastSoldAt';
