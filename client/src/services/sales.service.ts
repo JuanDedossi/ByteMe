@@ -1,5 +1,5 @@
 import api from './api';
-import type { BreakdownResponse, Sale, CreateSalePayload, SaleSummary } from '../types/sale.types';
+import type { BreakdownResponse, BreakdownSortBy, Sale, CreateSalePayload, SaleSummary } from '../types/sale.types';
 
 export interface SalesListResponse {
   success: boolean;
@@ -25,6 +25,7 @@ export const salesService = {
     dateTo?: string;
     limit?: number;
     offset?: number;
+    sortBy?: BreakdownSortBy;
   } = {}): Promise<BreakdownResponse> {
     const { data } = await api.get('/sales/breakdown', { params });
     return data.data as BreakdownResponse;

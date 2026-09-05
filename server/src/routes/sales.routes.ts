@@ -5,9 +5,19 @@ import {
   getSalesSummary,
   getSalesBreakdown,
   createSale,
+  BreakdownSortBy,
 } from '../services/sales.service';
 import { validate } from '../middleware/validate';
 import { CreateSaleSchema } from '../validation/schemas';
+
+const VALID_SORT_BY: readonly BreakdownSortBy[] = ['quantity', 'profit', 'name', 'lastSoldAt'];
+
+function parseSortBy(raw: unknown): BreakdownSortBy {
+  if (typeof raw === 'string' && (VALID_SORT_BY as readonly string[]).includes(raw)) {
+    return raw as BreakdownSortBy;
+  }
+  return 'quantity';
+}
 
 const router = Router();
 
@@ -91,12 +101,14 @@ router.get('/breakdown', async (req: Request, res: Response, next: NextFunction)
     const parsedOffset = parseInt(req.query.offset as string, 10);
     const limit = Math.min(100, parsedLimit > 0 ? parsedLimit : 10);
     const offset = Math.max(0, parsedOffset || 0);
+    const sortBy = parseSortBy(req.query.sortBy);
 
     const data = await getSalesBreakdown({
       dateFrom: dateFrom && !isNaN(dateFrom.getTime()) ? dateFrom : undefined,
       dateTo: dateTo && !isNaN(dateTo.getTime()) ? dateTo : undefined,
       limit,
       offset,
+      sortBy,
     });
     res.json({ success: true, data });
   } catch (err) {

@@ -143,12 +143,15 @@ export async function getSalesSummary(
   };
 }
 
+export type BreakdownSortBy = 'quantity' | 'profit' | 'name' | 'lastSoldAt';
+
 export interface BreakdownItem {
   type: 'recipe' | 'tray';
   name: string;
   quantity: number;
   revenue: number;
   profit: number;
+  lastSoldAt: string;
 }
 
 export async function getSalesBreakdown({
@@ -156,11 +159,13 @@ export async function getSalesBreakdown({
   dateTo,
   limit = 10,
   offset = 0,
+  sortBy = 'quantity',
 }: {
   dateFrom?: Date;
   dateTo?: Date;
   limit?: number;
   offset?: number;
+  sortBy?: BreakdownSortBy;
 }): Promise<{ items: BreakdownItem[]; total: number }> {
   const Sale = getSaleModel();
   const match: Record<string, unknown> = {};
@@ -170,6 +175,15 @@ export async function getSalesBreakdown({
     if (dateTo) range.$lte = dateTo;
     match.createdAt = range;
   }
+
+  const sortStage: Record<string, 1 | -1> =
+    sortBy === 'profit'
+      ? { profit: -1, quantity: -1, revenue: -1 }
+      : sortBy === 'name'
+        ? { name: 1, quantity: -1, revenue: -1 }
+        : sortBy === 'lastSoldAt'
+          ? { lastSoldAt: -1, quantity: -1, revenue: -1 }
+          : { quantity: -1, revenue: -1 };
 
   const [result] = await Sale.aggregate([
     { $match: match },
@@ -184,6 +198,7 @@ export async function getSalesBreakdown({
         revenue: { $sum: '$items.subtotal' },
         cost: { $sum: { $ifNull: ['$items.subtotalCost', 0] } },
         snapshotName: { $first: '$items.recipeName' },
+        lastSoldAt: { $max: '$createdAt' },
       },
     },
     {
@@ -239,9 +254,11 @@ export async function getSalesBreakdown({
         quantity: 1,
         revenue: 1,
         cost: 1,
+        profit: { $subtract: ['$revenue', '$cost'] },
+        lastSoldAt: 1,
       },
     },
-    { $sort: { quantity: -1, revenue: -1 } },
+    { $sort: sortStage },
     {
       $facet: {
         items: [{ $skip: offset }, { $limit: limit }],
@@ -250,12 +267,13 @@ export async function getSalesBreakdown({
     },
   ]);
 
-  const items = (result?.items ?? []).map((item: Omit<BreakdownItem, 'profit'> & { cost: number }) => ({
+  const items = (result?.items ?? []).map((item: Omit<BreakdownItem, 'profit' | 'lastSoldAt'> & { cost: number; lastSoldAt: Date | string }) => ({
     type: item.type,
     name: item.name,
     quantity: item.quantity,
     revenue: item.revenue,
     profit: roundCurrency(item.revenue - item.cost),
+    lastSoldAt: new Date(item.lastSoldAt).toISOString(),
   }));
   return { items, total: result?.total?.[0]?.c ?? 0 };
 }
