@@ -32,3 +32,16 @@ export interface SaleSummary {
   totalCost: number;
   profit: number;
 }
+
+export interface BreakdownItem {
+  type: 'recipe' | 'tray';
+  name: string;
+  quantity: number;
+  revenue: number;
+  profit: number;
+}
+
+export interface BreakdownResponse {
+  items: BreakdownItem[];
+  total: number;
+}

@@ -8,6 +8,7 @@ import {
   MdGridView,
   MdReceipt,
   MdExtension,
+  MdBarChart,
 } from 'react-icons/md';
 
 const USER_LABEL_KEY = 'mordisquitos-user';
@@ -21,6 +22,7 @@ const navItems = [
   { path: '/markups', icon: MdTrendingUp, label: 'Markups' },
   { path: '/calculadora', icon: MdCalculate, label: 'Calculadora' },
   { path: '/historial', icon: MdReceipt, label: 'Historial' },
+  { path: '/analytics', icon: MdBarChart, label: 'Analytics' },
 ];
 
 export function BottomNav() {
