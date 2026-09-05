@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { MdAdd } from 'react-icons/md';
 import { RecipeStockCard } from '../components/stock/RecipeStockCard';
 import { TrayStockCard } from '../components/stock/TrayStockCard';
-import { ProfitMetrics } from '../components/stock/ProfitMetrics';
 import { SaleModal } from '../components/sales/SaleModal';
 import { SearchBar } from '../components/common/SearchBar';
 import { Pagination } from '../components/common/Pagination';
@@ -11,7 +10,7 @@ import { traysService } from '../services/trays.service';
 import { salesService } from '../services/sales.service';
 import type { Recipe } from '../types/recipe.types';
 import type { Tray } from '../types/tray.types';
-import type { SaleStats, CreateSalePayload } from '../types/sale.types';
+import type { CreateSalePayload } from '../types/sale.types';
 
 export function StockSalesPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -26,7 +25,6 @@ export function StockSalesPage() {
 
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<SaleStats>({ weekly: 0, monthly: 0, weeklyProfit: 0, monthlyProfit: 0 });
   const [modalOpen, setModalOpen] = useState(false);
   const [preSelectedId, setPreSelectedId] = useState<string | undefined>(undefined);
   const [preSelectedType, setPreSelectedType] = useState<'recipe' | 'tray' | undefined>(undefined);
@@ -66,15 +64,6 @@ export function StockSalesPage() {
     }
   }, [traysPage, search]);
 
-  const fetchStats = useCallback(async () => {
-    const data = await salesService.getStats();
-    setStats(data);
-  }, []);
-
-  useEffect(() => {
-    void fetchStats();
-  }, [fetchStats]);
-
   useEffect(() => {
     const timer = setTimeout(() => {
       void fetchRecipes();
@@ -107,7 +96,7 @@ export function StockSalesPage() {
 
   const handleSaleSubmit = async (payload: CreateSalePayload) => {
     await salesService.create(payload);
-    await Promise.all([fetchRecipes(), fetchTrays(), fetchStats()]);
+    await Promise.all([fetchRecipes(), fetchTrays()]);
   };
 
   return (
@@ -135,9 +124,6 @@ export function StockSalesPage() {
 
       {/* Content */}
       <div style={{ padding: 'var(--space-lg)', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-        {/* Profit metrics */}
-        <ProfitMetrics stats={stats} />
-
         {/* Recipes section */}
         {!loading && (
           <p
