@@ -1,8 +1,7 @@
-// Preset boundaries are computed in the browser's local timezone. The server
-// runs TZ=America/Argentina/Buenos_Aires, so this matches when the user's
-// device is in that zone. If a user opens the app from a different zone,
-// presets will be off by the offset; server-side aggregation still uses the
-// pinned TZ, so historical data is unaffected.
+// Preset boundaries are computed in Argentina time (America/Argentina/Buenos_Aires)
+// regardless of the user's device timezone. The server also runs in Argentina TZ
+// (pinned in api/index.ts and server/src/main.ts), so client and server agree on
+// what "today" / "this week" / "this month" mean.
 export type Preset = 'today' | 'week' | 'month' | 'all';
 
 export const PRESETS: { key: Preset; label: string }[] = [
@@ -12,26 +11,73 @@ export const PRESETS: { key: Preset; label: string }[] = [
   { key: 'all', label: 'Todo' },
 ];
 
+const ARGENTINA_TZ = 'America/Argentina/Buenos_Aires';
+
+const ARGENTINA_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: ARGENTINA_TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+const ARGENTINA_YEAR_MONTH_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: ARGENTINA_TZ,
+  year: 'numeric',
+  month: '2-digit',
+});
+
+const ARGENTINA_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: ARGENTINA_TZ,
+  weekday: 'short',
+});
+
+const WEEKDAY_INDEX: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+// Format a Date as YYYY-MM-DD in Argentina time.
+function argentinaDateStr(d: Date): string {
+  return ARGENTINA_DATE_FORMATTER.format(d);
+}
+
+// Day of week (0 = Sunday ... 6 = Saturday) for `d` interpreted in Argentina time.
+function argentinaDayOfWeek(d: Date): number {
+  return WEEKDAY_INDEX[ARGENTINA_WEEKDAY_FORMATTER.format(d)] ?? 0;
+}
+
+// Subtract N calendar days from a YYYY-MM-DD string. We only emit strings so the
+// arithmetic's intermediate timezone doesn't matter — Date constructor + setDate
+// just bumps the day, no conversion.
+function subtractDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() - days);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 export function getPresetDates(preset: Preset): { dateFrom?: string; dateTo?: string } {
   const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const toDateStr = (d: Date) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = argentinaDateStr(now);
 
   if (preset === 'today') {
-    const today = toDateStr(now);
     return { dateFrom: today, dateTo: today };
   }
   if (preset === 'week') {
-    const day = now.getDay();
-    const diffToMonday = day === 0 ? 6 : day - 1;
-    const from = new Date(now);
-    from.setDate(now.getDate() - diffToMonday);
-    return { dateFrom: toDateStr(from), dateTo: toDateStr(now) };
+    const dow = argentinaDayOfWeek(now);
+    const diffToMonday = dow === 0 ? 6 : dow - 1;
+    const from = subtractDays(today, diffToMonday);
+    return { dateFrom: from, dateTo: today };
   }
   if (preset === 'month') {
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { dateFrom: toDateStr(from), dateTo: toDateStr(now) };
+    const yearMonth = ARGENTINA_YEAR_MONTH_FORMATTER.format(now); // YYYY-MM
+    return { dateFrom: `${yearMonth}-01`, dateTo: today };
   }
   return {};
 }
