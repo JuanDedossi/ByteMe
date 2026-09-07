@@ -31,11 +31,13 @@ function formatTime(iso: string) {
 
 export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistoryCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  // Track the raw input value per item so an empty string stays empty
+  // (mobile editing state) instead of collapsing to 0 and firing a DELETE.
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
   const debounceRefs = useRef<Record<string, number>>({});
 
   useEffect(() => {
-    setQuantities(Object.fromEntries(sale.items.map((item) => [item._id, item.quantity])));
+    setQuantities(Object.fromEntries(sale.items.map((item) => [item._id, String(item.quantity)])));
   }, [sale]);
 
   // Clear any pending debounced saves when the component unmounts so a stale
@@ -58,12 +60,22 @@ export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistor
   const handleQtyChange =
     (itemId: string, currentQty: number) => (event: ChangeEvent<HTMLInputElement>) => {
       const raw = event.target.value;
-      const parsed = raw === '' ? 0 : Number(raw);
+      setQuantities((previous) => ({ ...previous, [itemId]: raw }));
+
+      // Empty string is intermediate state during mobile editing — the user
+      // typically clears the field to type a new value, and the brief empty
+      // window must not trigger a save. DELETE is explicit via the trash icon.
+      if (raw === '') {
+        const existing = debounceRefs.current[itemId];
+        if (existing) window.clearTimeout(existing);
+        return;
+      }
+
+      const parsed = Number(raw);
       if (!Number.isFinite(parsed)) return;
       // Decrease-only: clamp to [0, currentQty] so the UI can never propose an
       // increase. The server enforces the same rule server-side as defense in depth.
-      const clamped = Math.max(0, Math.min(parsed, currentQty));
-      setQuantities((previous) => ({ ...previous, [itemId]: clamped }));
+      const clamped = Math.max(0, Math.min(Math.floor(parsed), currentQty));
 
       const existing = debounceRefs.current[itemId];
       if (existing) window.clearTimeout(existing);
@@ -214,7 +226,7 @@ export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistor
                       type="number"
                       min={0}
                       max={item.quantity}
-                      value={quantities[item._id] ?? item.quantity}
+                      value={quantities[item._id] ?? String(item.quantity)}
                       onChange={handleQtyChange(item._id, item.quantity)}
                       style={{ width: '3.5rem', textAlign: 'right' }}
                     />
