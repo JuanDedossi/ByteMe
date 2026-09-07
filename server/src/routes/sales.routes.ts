@@ -5,10 +5,12 @@ import {
   getSalesSummary,
   getSalesBreakdown,
   createSale,
+  removeLineFromSale,
+  updateLineQuantity,
   BreakdownSortBy,
 } from '../services/sales.service';
 import { validate } from '../middleware/validate';
-import { CreateSaleSchema } from '../validation/schemas';
+import { CreateSaleSchema, UpdateLineQuantitySchema } from '../validation/schemas';
 
 const VALID_SORT_BY: readonly BreakdownSortBy[] = ['quantity', 'profit', 'name', 'lastSoldAt'];
 
@@ -128,5 +130,32 @@ router.post('/', validate(CreateSaleSchema), async (req: Request, res: Response,
     next(err);
   }
 });
+
+router.delete('/:saleId/items/:itemId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await removeLineFromSale(String(req.params.saleId), String(req.params.itemId));
+    res.json({ success: true, data, message: 'Línea eliminada' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch(
+  '/:saleId/items/:itemId',
+  validate(UpdateLineQuantitySchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await updateLineQuantity(
+        String(req.params.saleId),
+        String(req.params.itemId),
+        req.body.quantity,
+        req.body.currentQty,
+      );
+      res.json({ success: true, data, message: 'Cantidad actualizada' });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 export default router;

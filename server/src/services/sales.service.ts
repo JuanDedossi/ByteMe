@@ -495,3 +495,141 @@ export async function createSale(
     session.endSession();
   }
 }
+
+function lineNotFound(): never {
+  throw { status: 404, message: 'Línea no encontrada' };
+}
+
+async function restoreLineStock(
+  item: SaleDocument['items'][number],
+  quantity: number,
+  session: mongoose.ClientSession,
+): Promise<unknown> {
+  const id = item.itemType === 'tray' ? item.trayId : item.recipeId;
+  if (!id) lineNotFound();
+  const updated = item.itemType === 'tray'
+    ? await getTrayModel().findOneAndUpdate(
+        { _id: id },
+        { $inc: { stock: quantity } },
+        { session },
+      )
+    : await getRecipeModel().findOneAndUpdate(
+        { _id: id },
+        { $inc: { stock: quantity } },
+        { session },
+      );
+  if (!updated) lineNotFound();
+  return updated;
+}
+
+function recomputeTotals(items: SaleDocument['items']): {
+  total: number;
+  totalCost: number;
+} {
+  return {
+    total: roundCurrency(items.reduce((sum, item) => sum + item.subtotal, 0)),
+    totalCost: roundCurrency(
+      items.reduce((sum, item) => sum + (item.subtotalCost ?? 0), 0),
+    ),
+  };
+}
+
+export async function removeLineFromSale(
+  saleId: string,
+  itemId: string,
+): Promise<SaleDocument> {
+  if (!Types.ObjectId.isValid(saleId) || !Types.ObjectId.isValid(itemId)) lineNotFound();
+  const Sale = getSaleModel();
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const sale = await Sale.findOneAndUpdate(
+      { _id: saleId, deletedAt: null, 'items._id': itemId },
+      { $set: { deletedAt: new Date() } },
+      { new: true, session },
+    );
+    if (!sale) lineNotFound();
+    const item = sale.items.find((candidate) => candidate._id?.toString() === itemId);
+    if (!item) lineNotFound();
+
+    await restoreLineStock(item, item.quantity, session);
+    const remainingItems = sale.items.filter(
+      (candidate) => candidate._id?.toString() !== itemId,
+    );
+    const totals = recomputeTotals(remainingItems);
+    const updated = await Sale.findOneAndUpdate(
+      { _id: saleId, 'items._id': itemId },
+      {
+        $pull: { items: { _id: itemId } },
+        $set: remainingItems.length === 0 ? totals : { ...totals, deletedAt: null },
+      },
+      { new: true, session },
+    );
+    if (!updated) lineNotFound();
+    if (updated.items.length === 0) {
+      await session.commitTransaction();
+      return updated as SaleDocument;
+    }
+    await session.commitTransaction();
+    return updated as SaleDocument;
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+}
+
+export async function updateLineQuantity(
+  saleId: string,
+  itemId: string,
+  newQty: number,
+  currentQty: number,
+): Promise<SaleDocument> {
+  if (newQty >= currentQty) {
+    throw { status: 400, message: 'La nueva cantidad debe ser menor que la actual' };
+  }
+  if (newQty === 0) return removeLineFromSale(saleId, itemId);
+  if (!Types.ObjectId.isValid(saleId) || !Types.ObjectId.isValid(itemId)) lineNotFound();
+
+  const Sale = getSaleModel();
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const updated = await Sale.findOneAndUpdate(
+      {
+        _id: saleId,
+        deletedAt: null,
+        'items._id': itemId,
+        'items.$.quantity': currentQty,
+      },
+      { $set: { 'items.$.quantity': newQty } },
+      { new: true, session },
+    );
+    if (!updated) {
+      throw {
+        status: 409,
+        message: 'La línea fue modificada por otra operación, recargá y probá de nuevo',
+      };
+    }
+    const item = updated.items.find((candidate) => candidate._id?.toString() === itemId);
+    if (!item) lineNotFound();
+    item.subtotal = roundCurrency(item.unitPrice * newQty);
+    item.subtotalCost = roundCurrency((item.costAtSale ?? 0) * newQty);
+    await restoreLineStock(item, currentQty - newQty, session);
+    const totals = recomputeTotals(updated.items);
+    const result = await Sale.findOneAndUpdate(
+      { _id: saleId, deletedAt: null, 'items._id': itemId },
+      { $set: { 'items.$.subtotal': item.subtotal, 'items.$.subtotalCost': item.subtotalCost, ...totals } },
+      { new: true, session },
+    );
+    if (!result) lineNotFound();
+    await session.commitTransaction();
+    return result as SaleDocument;
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+}
