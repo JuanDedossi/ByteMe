@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 import { getTenantDb } from '../middleware/tenant-context';
 
 export interface ISaleItem {
+  _id?: Types.ObjectId;
   itemType: 'recipe' | 'tray';
   recipeId?: Types.ObjectId;
   trayId?: Types.ObjectId;
@@ -19,6 +20,7 @@ export interface ISale {
   items: ISaleItem[];
   total: number;
   totalCost?: number;
+  deletedAt?: Date | null;
 }
 
 export type SaleDocument = ISale & Document;
@@ -47,7 +49,7 @@ const SaleItemSchema = new Schema(
     costAtSale: { type: Number, required: false, min: 0 },
     subtotalCost: { type: Number, required: false, min: 0 },
   },
-  { _id: false },
+  { _id: true },
 );
 
 const SaleSchema = new Schema<SaleDocument>(
@@ -55,6 +57,7 @@ const SaleSchema = new Schema<SaleDocument>(
     items: { type: [SaleItemSchema], required: true },
     total: { type: Number, required: true, default: 0, min: 0 },
     totalCost: { type: Number, required: false, default: 0, min: 0 },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

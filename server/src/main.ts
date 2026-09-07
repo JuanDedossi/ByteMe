@@ -10,6 +10,7 @@ import app from './app';
 import { connectDB } from './db';
 import { runRenameMarginToMarkupMigration } from './migrations/rename-margin-to-markup';
 import { runAuditZeroYieldAndEmptyTraysMigration } from './migrations/audit-zero-yield-and-empty-trays';
+import { runBackfillDeletedAtMigration } from './migrations/backfill-deleted-at';
 
 const port = process.env.PORT || 3001;
 
@@ -26,6 +27,12 @@ async function main() {
     await runAuditZeroYieldAndEmptyTraysMigration();
   } catch (err) {
     console.error('Audit migration failed (non-fatal):', err);
+  }
+
+  try {
+    await runBackfillDeletedAtMigration();
+  } catch (err) {
+    console.error('Deleted-at backfill migration failed (non-fatal):', err);
   }
 
   app.listen(port, () => {

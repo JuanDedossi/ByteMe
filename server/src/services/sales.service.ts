@@ -17,7 +17,7 @@ export async function findAllSales(
   dateTo?: Date,
 ): Promise<{ data: SaleDocument[]; total: number }> {
   const Sale = getSaleModel();
-  const query: Record<string, unknown> = {};
+  const query: Record<string, unknown> = { deletedAt: null };
   if (dateFrom || dateTo) {
     const range: Record<string, Date> = {};
     if (dateFrom) range.$gte = dateFrom;
@@ -57,7 +57,7 @@ export async function getSaleStats(): Promise<{
 
   const [weeklyResult, monthlyResult] = await Promise.all([
     Sale.aggregate([
-      { $match: { createdAt: { $gte: weekStart } } },
+      { $match: { createdAt: { $gte: weekStart }, deletedAt: null } },
       {
         $group: {
           _id: null,
@@ -67,7 +67,7 @@ export async function getSaleStats(): Promise<{
       },
     ]),
     Sale.aggregate([
-      { $match: { createdAt: { $gte: monthStart } } },
+      { $match: { createdAt: { $gte: monthStart }, deletedAt: null } },
       {
         $group: {
           _id: null,
@@ -102,7 +102,7 @@ export async function getSalesSummary(
   totalQuantity: number;
 }> {
   const Sale = getSaleModel();
-  const query: Record<string, unknown> = {};
+  const query: Record<string, unknown> = { deletedAt: null };
   if (dateFrom || dateTo) {
     const range: Record<string, Date> = {};
     if (dateFrom) range.$gte = dateFrom;
@@ -181,7 +181,7 @@ export async function getSalesBreakdown({
   sortBy?: BreakdownSortBy;
 }): Promise<{ items: BreakdownItem[]; total: number }> {
   const Sale = getSaleModel();
-  const match: Record<string, unknown> = {};
+  const match: Record<string, unknown> = { deletedAt: null };
   if (dateFrom || dateTo) {
     const range: Record<string, Date> = {};
     if (dateFrom) range.$gte = dateFrom;
