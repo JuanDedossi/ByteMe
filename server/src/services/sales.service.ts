@@ -605,14 +605,6 @@ export async function updateLineQuantity(
       throw { status: 404, message: 'Línea no encontrada' };
     }
     const currentQty = currentItem.quantity;
-    console.log('[updateLineQuantity]', {
-      saleId,
-      itemId,
-      currentQty,
-      newQty,
-      itemsCount: currentSale.items.length,
-      itemIds: currentSale.items.map((i) => i._id?.toString()),
-    });
 
     if (newQty === 0) {
       await session.abortTransaction();
@@ -661,21 +653,12 @@ export async function updateLineQuantity(
       { new: true, session },
     );
     if (!updated) {
-      // This should be impossible given the in-transaction pre-check passed.
-      // Log diagnostic info and return 409 with the actual stored state.
-      const actualSale = await Sale.findOne({ _id: saleId, deletedAt: null });
-      const actualItem = actualSale?.items.find((i) => i._id?.toString() === itemId);
-      console.error('[updateLineQuantity] update failed despite passing pre-check', {
-        saleId,
-        itemId,
-        preCheckCurrentQty: currentQty,
-        actualStoredQty: actualItem?.quantity,
-        actualDeletedAt: actualSale?.deletedAt,
-        itemExistsInActual: !!actualItem,
-      });
+      // Should not happen given the in-transaction pre-check passed, but
+      // defend against it: a concurrent soft-delete or external write could
+      // have invalidated the document between the read and the update.
       throw {
         status: 409,
-        message: `No se pudo actualizar la línea (debug: preCheck=${currentQty}, stored=${actualItem?.quantity}, deletedAt=${actualSale?.deletedAt ? 'set' : 'null'})`,
+        message: 'La línea fue modificada por otra operación mientras la editabas; recargá y probá de nuevo',
       };
     }
 
