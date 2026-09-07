@@ -588,65 +588,88 @@ export async function updateLineQuantity(
   if (!Types.ObjectId.isValid(saleId) || !Types.ObjectId.isValid(itemId)) lineNotFound();
 
   const Sale = getSaleModel();
-  // Pre-check: distinguish "sale/line missing" from "qty constraint" from "race".
-  // The previous implementation conflated all three into a generic 409, which made
-  // debugging impossible. Now the client only sends the desired new quantity and
-  // the server reads the current quantity itself for the CAS token.
-  const currentSale = await Sale.findOne({ _id: saleId, deletedAt: null });
-  if (!currentSale) {
-    throw { status: 404, message: 'Venta no encontrada' };
-  }
-  const currentItem = currentSale.items.find(
-    (candidate) => candidate._id?.toString() === itemId,
-  );
-  if (!currentItem) {
-    throw { status: 404, message: 'Línea no encontrada' };
-  }
-  const currentQty = currentItem.quantity;
-
-  if (newQty === 0) return removeLineFromSale(saleId, itemId);
-  if (newQty >= currentQty) {
-    throw {
-      status: 400,
-      message: `La nueva cantidad debe ser menor que la actual (${currentQty})`,
-    };
-  }
-
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
+
+    // Read inside the transaction so the snapshot is consistent with the
+    // subsequent update. Outside-transaction reads can see a slightly different
+    // value than the transaction's snapshot, which is why the previous
+    // implementation kept failing the CAS.
+    const currentSale = await Sale.findOne({ _id: saleId, deletedAt: null }).session(session);
+    if (!currentSale) {
+      throw { status: 404, message: 'Venta no encontrada' };
+    }
+    const currentItem = currentSale.items.find(
+      (candidate) => candidate._id?.toString() === itemId,
+    );
+    if (!currentItem) {
+      throw { status: 404, message: 'Línea no encontrada' };
+    }
+    const currentQty = currentItem.quantity;
+
+    if (newQty === 0) {
+      // Defer to removeLineFromSale (which has its own transaction); abort here
+      // to avoid nesting.
+      await session.abortTransaction();
+      session.endSession();
+      return removeLineFromSale(saleId, itemId);
+    }
+    if (newQty >= currentQty) {
+      throw {
+        status: 400,
+        message: `La nueva cantidad debe ser menor que la actual (${currentQty})`,
+      };
+    }
+
+    // Single-shot update: filter requires the item to exist AND have stored
+    // quantity strictly greater than the new qty (enforces decrease-only at
+    // the storage layer, no separate CAS race). $set recomputes the line's
+    // subtotal, subtotalCost, and the sale's total / totalCost.
+    const unitPrice = currentItem.unitPrice;
+    const costAtSale = currentItem.costAtSale ?? 0;
+    const newSubtotal = roundCurrency(unitPrice * newQty);
+    const newSubtotalCost = roundCurrency(costAtSale * newQty);
+
+    // Build new items array (one item changed) so we can recompute totals cleanly.
+    const newItems = currentSale.items.map((i) =>
+      i._id?.toString() === itemId
+        ? { ...i, quantity: newQty, subtotal: newSubtotal, subtotalCost: newSubtotalCost }
+        : i,
+    );
+    const totals = recomputeTotals(newItems);
+
     const updated = await Sale.findOneAndUpdate(
       {
         _id: saleId,
         deletedAt: null,
         'items._id': itemId,
-        'items.$.quantity': currentQty,
+        'items.$.quantity': { $gt: newQty },
       },
-      { $set: { 'items.$.quantity': newQty } },
+      {
+        $set: {
+          'items.$.quantity': newQty,
+          'items.$.subtotal': newSubtotal,
+          'items.$.subtotalCost': newSubtotalCost,
+          total: totals.total,
+          totalCost: totals.totalCost,
+        },
+      },
       { new: true, session },
     );
     if (!updated) {
       throw {
         status: 409,
-        message: `La línea fue modificada por otra operación mientras la editabas. La cantidad actual puede haber cambiado; recargá y probá de nuevo`,
+        message: `No se pudo actualizar la línea. La cantidad actual puede haber cambiado; recargá y probá de nuevo`,
       };
     }
-    const item = updated.items.find((candidate) => candidate._id?.toString() === itemId);
-    if (!item) lineNotFound();
-    item.subtotal = roundCurrency(item.unitPrice * newQty);
-    item.subtotalCost = roundCurrency((item.costAtSale ?? 0) * newQty);
-    await restoreLineStock(item, currentQty - newQty, session);
-    const totals = recomputeTotals(updated.items);
-    const result = await Sale.findOneAndUpdate(
-      { _id: saleId, deletedAt: null, 'items._id': itemId },
-      { $set: { 'items.$.subtotal': item.subtotal, 'items.$.subtotalCost': item.subtotalCost, ...totals } },
-      { new: true, session },
-    );
-    if (!result) lineNotFound();
+
+    await restoreLineStock(updated.items.find((i) => i._id?.toString() === itemId)!, currentQty - newQty, session);
+
     await session.commitTransaction();
-    return result as SaleDocument;
+    return updated as SaleDocument;
   } catch (err) {
-    await session.abortTransaction();
+    try { await session.abortTransaction(); } catch { /* already aborted */ }
     throw err;
   } finally {
     session.endSession();
