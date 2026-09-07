@@ -1,9 +1,11 @@
-import { useState } from 'react';
-import { MdExpandMore, MdExpandLess } from 'react-icons/md';
+import { useEffect, useState } from 'react';
+import { MdDeleteOutline, MdExpandMore, MdExpandLess } from 'react-icons/md';
 import type { Sale } from '../../types/sale.types';
 
 interface SaleHistoryCardProps {
   sale: Sale;
+  onLineDelete: (itemId: string) => Promise<void>;
+  onLineUpdate: (itemId: string, quantity: number, currentQty: number) => Promise<void>;
 }
 
 function fmt(v: number) {
@@ -24,8 +26,18 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function SaleHistoryCard({ sale }: SaleHistoryCardProps) {
+export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistoryCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setQuantities(Object.fromEntries(sale.items.map((item) => [item._id, item.quantity])));
+  }, [sale]);
+
+  const handleDelete = async (itemId: string) => {
+    if (!window.confirm('¿Eliminar esta línea?')) return;
+    await onLineDelete(itemId);
+  };
 
   return (
     <div
@@ -107,7 +119,7 @@ export function SaleHistoryCard({ sale }: SaleHistoryCardProps) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {(['Producto', 'Cant.', 'Precio unit.', 'Subtotal'] as const).map((h) => (
+                {(['Producto', 'Cant.', 'Precio unit.', 'Subtotal', 'Acciones'] as const).map((h) => (
                   <th
                     key={h}
                     style={{
@@ -126,7 +138,7 @@ export function SaleHistoryCard({ sale }: SaleHistoryCardProps) {
             </thead>
             <tbody>
               {sale.items.map((item, idx) => (
-                <tr key={idx}>
+                  <tr key={item._id}>
                   <td
                     style={{
                       fontFamily: 'var(--font-body)',
@@ -160,7 +172,36 @@ export function SaleHistoryCard({ sale }: SaleHistoryCardProps) {
                       padding: '3px 0',
                     }}
                   >
-                    {item.quantity}
+                    <input
+                      type="number"
+                      min={0}
+                      value={quantities[item._id] ?? item.quantity}
+                      onChange={(event) =>
+                        setQuantities((previous) => ({
+                          ...previous,
+                          [item._id]: Number(event.target.value),
+                        }))
+                      }
+                      style={{ width: '3.5rem', textAlign: 'right' }}
+                    />
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '3px 0' }}>
+                    <button
+                      type="button"
+                      title="Eliminar línea"
+                      aria-label={`Eliminar ${item.recipeName}`}
+                      onClick={() => void handleDelete(item._id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-warning)' }}
+                    >
+                      <MdDeleteOutline size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void onLineUpdate(item._id, quantities[item._id] ?? item.quantity, item.quantity)}
+                      style={{ border: 'none', borderRadius: 'var(--radius-sm)', padding: '3px 6px', cursor: 'pointer' }}
+                    >
+                      Guardar
+                    </button>
                   </td>
                   <td
                     style={{
@@ -191,7 +232,7 @@ export function SaleHistoryCard({ sale }: SaleHistoryCardProps) {
             <tfoot>
               <tr>
                 <td
-                  colSpan={3}
+                  colSpan={4}
                   style={{
                     fontFamily: 'var(--font-body)',
                     fontSize: '0.85rem',

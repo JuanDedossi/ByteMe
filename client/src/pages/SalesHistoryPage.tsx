@@ -6,6 +6,7 @@ import { MetricCard } from '../components/common/MetricCard';
 import { salesService } from '../services/sales.service';
 import type { Sale, SaleSummary } from '../types/sale.types';
 import { getPresetDates, type Preset } from '../utils/datePresets';
+import axios from 'axios';
 
 function fmt(v: number) {
   return `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -93,6 +94,45 @@ export function SalesHistoryPage() {
     setPage(1);
     if (field === 'from') setDateFrom(value);
     else setDateTo(value);
+  };
+
+  const handleLineError = (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      const message = error.response?.data?.error ?? error.response?.data?.message;
+      if (typeof message === 'string') {
+        setSummaryError(message);
+        return;
+      }
+    }
+    setSummaryError('No se pudo actualizar la línea');
+  };
+
+  const handleLineDelete = async (itemId: string, saleId: string) => {
+    try {
+      await salesService.removeLine(saleId, itemId);
+      await fetchSales();
+      await fetchSummary();
+    } catch (error) {
+      handleLineError(error);
+    }
+  };
+
+  const handleLineUpdate = async (
+    itemId: string,
+    quantity: number,
+    currentQty: number,
+    saleId: string,
+  ) => {
+    try {
+      await salesService.updateLineQuantity(saleId, itemId, quantity, currentQty);
+      await fetchSales();
+      await fetchSummary();
+    } catch (error) {
+      handleLineError(error);
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        await fetchSales();
+      }
+    }
   };
 
   return (
@@ -212,7 +252,14 @@ export function SalesHistoryPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             {sales.map((sale) => (
-              <SaleHistoryCard key={sale._id} sale={sale} />
+              <SaleHistoryCard
+                key={sale._id}
+                sale={sale}
+                onLineDelete={(itemId) => handleLineDelete(itemId, sale._id)}
+                onLineUpdate={(itemId, quantity, currentQty) =>
+                  handleLineUpdate(itemId, quantity, currentQty, sale._id)
+                }
+              />
             ))}
           </div>
         )}
