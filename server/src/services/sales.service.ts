@@ -584,15 +584,34 @@ export async function updateLineQuantity(
   saleId: string,
   itemId: string,
   newQty: number,
-  currentQty: number,
 ): Promise<SaleDocument> {
-  if (newQty >= currentQty) {
-    throw { status: 400, message: 'La nueva cantidad debe ser menor que la actual' };
-  }
-  if (newQty === 0) return removeLineFromSale(saleId, itemId);
   if (!Types.ObjectId.isValid(saleId) || !Types.ObjectId.isValid(itemId)) lineNotFound();
 
   const Sale = getSaleModel();
+  // Pre-check: distinguish "sale/line missing" from "qty constraint" from "race".
+  // The previous implementation conflated all three into a generic 409, which made
+  // debugging impossible. Now the client only sends the desired new quantity and
+  // the server reads the current quantity itself for the CAS token.
+  const currentSale = await Sale.findOne({ _id: saleId, deletedAt: null });
+  if (!currentSale) {
+    throw { status: 404, message: 'Venta no encontrada' };
+  }
+  const currentItem = currentSale.items.find(
+    (candidate) => candidate._id?.toString() === itemId,
+  );
+  if (!currentItem) {
+    throw { status: 404, message: 'Línea no encontrada' };
+  }
+  const currentQty = currentItem.quantity;
+
+  if (newQty === 0) return removeLineFromSale(saleId, itemId);
+  if (newQty >= currentQty) {
+    throw {
+      status: 400,
+      message: `La nueva cantidad debe ser menor que la actual (${currentQty})`,
+    };
+  }
+
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -609,7 +628,7 @@ export async function updateLineQuantity(
     if (!updated) {
       throw {
         status: 409,
-        message: 'La línea fue modificada por otra operación, recargá y probá de nuevo',
+        message: `La línea fue modificada por otra operación mientras la editabas. La cantidad actual puede haber cambiado; recargá y probá de nuevo`,
       };
     }
     const item = updated.items.find((candidate) => candidate._id?.toString() === itemId);

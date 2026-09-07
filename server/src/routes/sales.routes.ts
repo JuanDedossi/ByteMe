@@ -149,7 +149,6 @@ router.patch(
         String(req.params.saleId),
         String(req.params.itemId),
         req.body.quantity,
-        req.body.currentQty,
       );
       res.json({ success: true, data, message: 'Cantidad actualizada' });
     } catch (err) {

@@ -6,7 +6,7 @@ import type { Sale } from '../../types/sale.types';
 interface SaleHistoryCardProps {
   sale: Sale;
   onLineDelete: (itemId: string) => Promise<void>;
-  onLineUpdate: (itemId: string, quantity: number, currentQty: number) => Promise<void>;
+  onLineUpdate: (itemId: string, quantity: number) => Promise<void>;
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 500;
@@ -81,7 +81,7 @@ export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistor
       if (existing) window.clearTimeout(existing);
       debounceRefs.current[itemId] = window.setTimeout(() => {
         delete debounceRefs.current[itemId];
-        void onLineUpdate(itemId, clamped, currentQty);
+        void onLineUpdate(itemId, clamped);
       }, AUTOSAVE_DEBOUNCE_MS);
     };
 

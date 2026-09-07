@@ -45,11 +45,9 @@ export const salesService = {
     saleId: string,
     itemId: string,
     quantity: number,
-    currentQty: number,
   ): Promise<Sale> {
     const { data } = await api.patch(`/sales/${saleId}/items/${itemId}`, {
       quantity,
-      currentQty,
     });
     return data.data as Sale;
   },

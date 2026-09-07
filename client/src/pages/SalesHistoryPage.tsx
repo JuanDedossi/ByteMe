@@ -117,14 +117,9 @@ export function SalesHistoryPage() {
     }
   };
 
-  const handleLineUpdate = async (
-    itemId: string,
-    quantity: number,
-    currentQty: number,
-    saleId: string,
-  ) => {
+  const handleLineUpdate = async (itemId: string, quantity: number, saleId: string) => {
     try {
-      await salesService.updateLineQuantity(saleId, itemId, quantity, currentQty);
+      await salesService.updateLineQuantity(saleId, itemId, quantity);
       await fetchSales();
       await fetchSummary();
     } catch (error) {
@@ -256,9 +251,7 @@ export function SalesHistoryPage() {
                 key={sale._id}
                 sale={sale}
                 onLineDelete={(itemId) => handleLineDelete(itemId, sale._id)}
-                onLineUpdate={(itemId, quantity, currentQty) =>
-                  handleLineUpdate(itemId, quantity, currentQty, sale._id)
-                }
+                onLineUpdate={(itemId, quantity) => handleLineUpdate(itemId, quantity, sale._id)}
               />
             ))}
           </div>
