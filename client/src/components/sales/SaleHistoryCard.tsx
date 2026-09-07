@@ -31,6 +31,7 @@ function formatTime(iso: string) {
 
 export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistoryCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   // Track the raw input value per item so an empty string stays empty
   // (mobile editing state) instead of collapsing to 0 and firing a DELETE.
   const [quantities, setQuantities] = useState<Record<string, string>>({});
@@ -56,6 +57,17 @@ export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistor
     if (!window.confirm('¿Eliminar esta línea?')) return;
     await onLineDelete(itemId);
   };
+
+  // Responsive: switch to a stacked item layout below 640px so all info
+  // (product, qty input, price, subtotal, delete) fits without horizontal
+  // scroll on phones.
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    setIsMobile(mq.matches);
+    const handler = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const handleQtyChange =
     (itemId: string, currentQty: number) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -162,163 +174,324 @@ export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistor
             padding: 'var(--space-sm) var(--space-md) var(--space-md)',
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {(['Producto', 'Cant.', 'Precio unit.', 'Subtotal', ''] as const).map((h, i) => (
-                  <th
-                    key={h || 'actions'}
-                    style={{
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      color: 'var(--color-text-secondary)',
-                      textAlign: i === 0 ? 'left' : 'right',
-                      paddingBottom: 'var(--space-xs)',
-                      width: i === 4 ? '2.5rem' : undefined,
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sale.items.map((item) => (
-                <tr key={item._id}>
-                  {/* Producto */}
-                  <td
-                    style={{
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.8rem',
-                      color: 'var(--color-text-primary)',
-                      padding: '3px 0',
-                    }}
-                  >
-                    {item.recipeName}
-                    {item.itemType === 'tray' && (
-                      <span
-                        style={{
-                          marginLeft: 4,
-                          fontSize: '0.6rem',
-                          color: 'var(--color-text-secondary)',
-                          background: 'rgba(218, 193, 184, 0.2)',
-                          padding: '1px 4px',
-                          borderRadius: 'var(--radius-sm)',
-                        }}
-                      >
-                        B
-                      </span>
-                    )}
-                  </td>
-
-                  {/* Cant. — auto-saves on change (debounced) */}
-                  <td
-                    style={{
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.8rem',
-                      color: 'var(--color-text-secondary)',
-                      textAlign: 'right',
-                      padding: '3px 0',
-                    }}
-                  >
-                    <input
-                      type="number"
-                      min={0}
-                      max={item.quantity}
-                      value={quantities[item._id] ?? String(item.quantity)}
-                      onChange={handleQtyChange(item._id, item.quantity)}
-                      style={{ width: '3.5rem', textAlign: 'right' }}
-                    />
-                  </td>
-
-                  {/* Precio unit. */}
-                  <td
-                    style={{
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.8rem',
-                      color: 'var(--color-text-secondary)',
-                      textAlign: 'right',
-                      padding: '3px 0',
-                    }}
-                  >
-                    {fmt(item.unitPrice)}
-                  </td>
-
-                  {/* Subtotal */}
-                  <td
-                    style={{
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      color: 'var(--color-text-primary)',
-                      textAlign: 'right',
-                      padding: '3px 0',
-                    }}
-                  >
-                    {fmt(item.subtotal)}
-                  </td>
-
-                  {/* Acciones */}
-                  <td
-                    style={{
-                      textAlign: 'right',
-                      padding: '3px 0',
-                      width: '2.5rem',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      title="Eliminar línea"
-                      aria-label={`Eliminar ${item.recipeName}`}
-                      onClick={() => void handleDelete(item._id)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--color-warning)',
-                        padding: 0,
-                      }}
-                    >
-                      <MdDeleteOutline size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td
-                  colSpan={4}
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    color: 'var(--color-text-primary)',
-                    paddingTop: 'var(--space-xs)',
-                    borderTop: '1px solid rgba(218, 193, 184, 0.25)',
-                  }}
-                >
-                  Total
-                </td>
-                <td
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.95rem',
-                    fontWeight: 700,
-                    color: 'var(--color-primary)',
-                    textAlign: 'right',
-                    paddingTop: 'var(--space-xs)',
-                    borderTop: '1px solid rgba(218, 193, 184, 0.25)',
-                  }}
-                >
-                  {fmt(sale.total)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+          {isMobile ? (
+            <MobileItems
+              items={sale.items}
+              quantities={quantities}
+              onQtyChange={handleQtyChange}
+              onDelete={handleDelete}
+              total={sale.total}
+            />
+          ) : (
+            <DesktopTable
+              items={sale.items}
+              quantities={quantities}
+              onQtyChange={handleQtyChange}
+              onDelete={handleDelete}
+              total={sale.total}
+            />
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+interface MobileItemsProps {
+  items: Sale['items'];
+  quantities: Record<string, string>;
+  onQtyChange: (itemId: string, currentQty: number) => (event: ChangeEvent<HTMLInputElement>) => void;
+  onDelete: (itemId: string) => Promise<void>;
+  total: number;
+}
+
+function MobileItems({ items, quantities, onQtyChange, onDelete, total }: MobileItemsProps) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+      {items.map((item) => (
+        <div
+          key={item._id}
+          style={{
+            paddingBottom: 'var(--space-xs)',
+            borderBottom: '1px solid rgba(218, 193, 184, 0.15)',
+          }}
+        >
+          {/* Top row: product name + tray badge */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-xs)',
+              marginBottom: 4,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              {item.recipeName}
+              {item.itemType === 'tray' && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    fontSize: '0.6rem',
+                    color: 'var(--color-text-secondary)',
+                    background: 'rgba(218, 193, 184, 0.2)',
+                    padding: '1px 4px',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                >
+                  B
+                </span>
+              )}
+            </span>
+          </div>
+          {/* Bottom row: qty input × price = subtotal, trash on the right */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.8rem',
+              color: 'var(--color-text-secondary)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <input
+              type="number"
+              min={0}
+              max={item.quantity}
+              value={quantities[item._id] ?? String(item.quantity)}
+              onChange={onQtyChange(item._id, item.quantity)}
+              style={{ width: '3.5rem', textAlign: 'right' }}
+            />
+            <span>× {fmt(item.unitPrice)} =</span>
+            <strong style={{ color: 'var(--color-text-primary)' }}>{fmt(item.subtotal)}</strong>
+            <button
+              type="button"
+              title="Eliminar línea"
+              aria-label={`Eliminar ${item.recipeName}`}
+              onClick={() => void onDelete(item._id)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--color-warning)',
+                padding: 0,
+                marginLeft: 'auto',
+                flexShrink: 0,
+              }}
+            >
+              <MdDeleteOutline size={18} />
+            </button>
+          </div>
+        </div>
+      ))}
+      {/* Footer total */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          paddingTop: 'var(--space-xs)',
+          marginTop: 'var(--space-xs)',
+          borderTop: '1px solid rgba(218, 193, 184, 0.25)',
+        }}
+      >
+        <span
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          Total
+        </span>
+        <span
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.95rem',
+            fontWeight: 700,
+            color: 'var(--color-primary)',
+          }}
+        >
+          {fmt(total)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+interface DesktopTableProps {
+  items: Sale['items'];
+  quantities: Record<string, string>;
+  onQtyChange: (itemId: string, currentQty: number) => (event: ChangeEvent<HTMLInputElement>) => void;
+  onDelete: (itemId: string) => Promise<void>;
+  total: number;
+}
+
+function DesktopTable({ items, quantities, onQtyChange, onDelete, total }: DesktopTableProps) {
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead>
+        <tr>
+          {(['Producto', 'Cant.', 'Precio unit.', 'Subtotal', ''] as const).map((h, i) => (
+            <th
+              key={h || 'actions'}
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                color: 'var(--color-text-secondary)',
+                textAlign: i === 0 ? 'left' : 'right',
+                paddingBottom: 'var(--space-xs)',
+                width: i === 4 ? '2.5rem' : undefined,
+              }}
+            >
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((item) => (
+          <tr key={item._id}>
+            {/* Producto */}
+            <td
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.8rem',
+                color: 'var(--color-text-primary)',
+                padding: '3px 0',
+              }}
+            >
+              {item.recipeName}
+              {item.itemType === 'tray' && (
+                <span
+                  style={{
+                    marginLeft: 4,
+                    fontSize: '0.6rem',
+                    color: 'var(--color-text-secondary)',
+                    background: 'rgba(218, 193, 184, 0.2)',
+                    padding: '1px 4px',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                >
+                  B
+                </span>
+              )}
+            </td>
+
+            {/* Cant. */}
+            <td
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.8rem',
+                color: 'var(--color-text-secondary)',
+                textAlign: 'right',
+                padding: '3px 0',
+              }}
+            >
+              <input
+                type="number"
+                min={0}
+                max={item.quantity}
+                value={quantities[item._id] ?? String(item.quantity)}
+                onChange={onQtyChange(item._id, item.quantity)}
+                style={{ width: '3.5rem', textAlign: 'right' }}
+              />
+            </td>
+
+            {/* Precio unit. */}
+            <td
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.8rem',
+                color: 'var(--color-text-secondary)',
+                textAlign: 'right',
+                padding: '3px 0',
+              }}
+            >
+              {fmt(item.unitPrice)}
+            </td>
+
+            {/* Subtotal */}
+            <td
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                color: 'var(--color-text-primary)',
+                textAlign: 'right',
+                padding: '3px 0',
+              }}
+            >
+              {fmt(item.subtotal)}
+            </td>
+
+            {/* Acciones */}
+            <td
+              style={{
+                textAlign: 'right',
+                padding: '3px 0',
+                width: '2.5rem',
+              }}
+            >
+              <button
+                type="button"
+                title="Eliminar línea"
+                aria-label={`Eliminar ${item.recipeName}`}
+                onClick={() => void onDelete(item._id)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--color-warning)',
+                  padding: 0,
+                }}
+              >
+                <MdDeleteOutline size={18} />
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td
+            colSpan={4}
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              color: 'var(--color-text-primary)',
+              paddingTop: 'var(--space-xs)',
+              borderTop: '1px solid rgba(218, 193, 184, 0.25)',
+            }}
+          >
+            Total
+          </td>
+          <td
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.95rem',
+              fontWeight: 700,
+              color: 'var(--color-primary)',
+              textAlign: 'right',
+              paddingTop: 'var(--space-xs)',
+              borderTop: '1px solid rgba(218, 193, 184, 0.25)',
+            }}
+          >
+            {fmt(total)}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
   );
 }
