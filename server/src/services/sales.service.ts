@@ -17,7 +17,7 @@ export async function findAllSales(
   dateTo?: Date,
 ): Promise<{ data: SaleDocument[]; total: number }> {
   const Sale = getSaleModel();
-  const query: Record<string, unknown> = {};
+  const query: Record<string, unknown> = { deletedAt: null };
   if (dateFrom || dateTo) {
     const range: Record<string, Date> = {};
     if (dateFrom) range.$gte = dateFrom;
@@ -57,7 +57,7 @@ export async function getSaleStats(): Promise<{
 
   const [weeklyResult, monthlyResult] = await Promise.all([
     Sale.aggregate([
-      { $match: { createdAt: { $gte: weekStart } } },
+      { $match: { createdAt: { $gte: weekStart }, deletedAt: null } },
       {
         $group: {
           _id: null,
@@ -67,7 +67,7 @@ export async function getSaleStats(): Promise<{
       },
     ]),
     Sale.aggregate([
-      { $match: { createdAt: { $gte: monthStart } } },
+      { $match: { createdAt: { $gte: monthStart }, deletedAt: null } },
       {
         $group: {
           _id: null,
@@ -102,7 +102,7 @@ export async function getSalesSummary(
   totalQuantity: number;
 }> {
   const Sale = getSaleModel();
-  const query: Record<string, unknown> = {};
+  const query: Record<string, unknown> = { deletedAt: null };
   if (dateFrom || dateTo) {
     const range: Record<string, Date> = {};
     if (dateFrom) range.$gte = dateFrom;
@@ -181,7 +181,7 @@ export async function getSalesBreakdown({
   sortBy?: BreakdownSortBy;
 }): Promise<{ items: BreakdownItem[]; total: number }> {
   const Sale = getSaleModel();
-  const match: Record<string, unknown> = {};
+  const match: Record<string, unknown> = { deletedAt: null };
   if (dateFrom || dateTo) {
     const range: Record<string, Date> = {};
     if (dateFrom) range.$gte = dateFrom;
@@ -490,6 +490,184 @@ export async function createSale(
     return result as SaleDocument;
   } catch (err) {
     await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+}
+
+function lineNotFound(): never {
+  throw { status: 404, message: 'Línea no encontrada' };
+}
+
+async function restoreLineStock(
+  item: SaleDocument['items'][number],
+  quantity: number,
+  session: mongoose.ClientSession,
+): Promise<unknown> {
+  const id = item.itemType === 'tray' ? item.trayId : item.recipeId;
+  if (!id) lineNotFound();
+  const updated = item.itemType === 'tray'
+    ? await getTrayModel().findOneAndUpdate(
+        { _id: id },
+        { $inc: { stock: quantity } },
+        { session },
+      )
+    : await getRecipeModel().findOneAndUpdate(
+        { _id: id },
+        { $inc: { stock: quantity } },
+        { session },
+      );
+  if (!updated) lineNotFound();
+  return updated;
+}
+
+function recomputeTotals(items: SaleDocument['items']): {
+  total: number;
+  totalCost: number;
+} {
+  return {
+    total: roundCurrency(items.reduce((sum, item) => sum + item.subtotal, 0)),
+    totalCost: roundCurrency(
+      items.reduce((sum, item) => sum + (item.subtotalCost ?? 0), 0),
+    ),
+  };
+}
+
+export async function removeLineFromSale(
+  saleId: string,
+  itemId: string,
+): Promise<SaleDocument> {
+  if (!Types.ObjectId.isValid(saleId) || !Types.ObjectId.isValid(itemId)) lineNotFound();
+  const Sale = getSaleModel();
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const sale = await Sale.findOneAndUpdate(
+      { _id: saleId, deletedAt: null, 'items._id': itemId },
+      { $set: { deletedAt: new Date() } },
+      { new: true, session },
+    );
+    if (!sale) lineNotFound();
+    const item = sale.items.find((candidate) => candidate._id?.toString() === itemId);
+    if (!item) lineNotFound();
+
+    await restoreLineStock(item, item.quantity, session);
+    const remainingItems = sale.items.filter(
+      (candidate) => candidate._id?.toString() !== itemId,
+    );
+    const totals = recomputeTotals(remainingItems);
+    const updated = await Sale.findOneAndUpdate(
+      { _id: saleId, 'items._id': itemId },
+      {
+        $pull: { items: { _id: itemId } },
+        $set: remainingItems.length === 0 ? totals : { ...totals, deletedAt: null },
+      },
+      { new: true, session },
+    );
+    if (!updated) lineNotFound();
+    if (updated.items.length === 0) {
+      await session.commitTransaction();
+      return updated as SaleDocument;
+    }
+    await session.commitTransaction();
+    return updated as SaleDocument;
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+}
+
+export async function updateLineQuantity(
+  saleId: string,
+  itemId: string,
+  newQty: number,
+): Promise<SaleDocument> {
+  if (!Types.ObjectId.isValid(saleId) || !Types.ObjectId.isValid(itemId)) lineNotFound();
+
+  const Sale = getSaleModel();
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    // Read inside the transaction so the snapshot is consistent with the
+    // subsequent update.
+    const currentSale = await Sale.findOne({ _id: saleId, deletedAt: null }).session(session);
+    if (!currentSale) {
+      throw { status: 404, message: 'Venta no encontrada' };
+    }
+    const currentItem = currentSale.items.find(
+      (candidate) => candidate._id?.toString() === itemId,
+    );
+    if (!currentItem) {
+      throw { status: 404, message: 'Línea no encontrada' };
+    }
+    const currentQty = currentItem.quantity;
+
+    if (newQty === 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return removeLineFromSale(saleId, itemId);
+    }
+    if (newQty >= currentQty) {
+      throw {
+        status: 400,
+        message: `La nueva cantidad debe ser menor que la actual (${currentQty})`,
+      };
+    }
+
+    // Decrease-only single-shot update. No CAS race — the pre-check inside
+    // the same transaction has already validated the constraint. Two
+    // concurrent requests on the same line would race on stock restore but
+    // that's an accepted MVP limitation; the final sale quantity ends up
+    // correct either way.
+    const unitPrice = currentItem.unitPrice;
+    const costAtSale = currentItem.costAtSale ?? 0;
+    const newSubtotal = roundCurrency(unitPrice * newQty);
+    const newSubtotalCost = roundCurrency(costAtSale * newQty);
+
+    const newItems = currentSale.items.map((i) =>
+      i._id?.toString() === itemId
+        ? { ...i, quantity: newQty, subtotal: newSubtotal, subtotalCost: newSubtotalCost }
+        : i,
+    );
+    const totals = recomputeTotals(newItems);
+
+    const updated = await Sale.findOneAndUpdate(
+      {
+        _id: saleId,
+        deletedAt: null,
+        'items._id': itemId,
+      },
+      {
+        $set: {
+          'items.$.quantity': newQty,
+          'items.$.subtotal': newSubtotal,
+          'items.$.subtotalCost': newSubtotalCost,
+          total: totals.total,
+          totalCost: totals.totalCost,
+        },
+      },
+      { new: true, session },
+    );
+    if (!updated) {
+      // Should not happen given the in-transaction pre-check passed, but
+      // defend against it: a concurrent soft-delete or external write could
+      // have invalidated the document between the read and the update.
+      throw {
+        status: 409,
+        message: 'La línea fue modificada por otra operación mientras la editabas; recargá y probá de nuevo',
+      };
+    }
+
+    await restoreLineStock(updated.items.find((i) => i._id?.toString() === itemId)!, currentQty - newQty, session);
+
+    await session.commitTransaction();
+    return updated as SaleDocument;
+  } catch (err) {
+    try { await session.abortTransaction(); } catch { /* already aborted */ }
     throw err;
   } finally {
     session.endSession();

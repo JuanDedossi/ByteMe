@@ -1,4 +1,5 @@
 export interface SaleItem {
+  _id: string;
   itemType?: 'recipe' | 'tray';
   recipeId?: string;
   trayId?: string;

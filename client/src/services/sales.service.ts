@@ -35,4 +35,20 @@ export const salesService = {
     const { data } = await api.post('/sales', payload);
     return data.data as Sale;
   },
+
+  async removeLine(saleId: string, itemId: string): Promise<Sale> {
+    const { data } = await api.delete(`/sales/${saleId}/items/${itemId}`);
+    return data.data as Sale;
+  },
+
+  async updateLineQuantity(
+    saleId: string,
+    itemId: string,
+    quantity: number,
+  ): Promise<Sale> {
+    const { data } = await api.patch(`/sales/${saleId}/items/${itemId}`, {
+      quantity,
+    });
+    return data.data as Sale;
+  },
 };

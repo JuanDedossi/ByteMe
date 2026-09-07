@@ -181,6 +181,12 @@ export const CreateSaleSchema = z.object({
 
 export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;
 
+export const UpdateLineQuantitySchema = z.object({
+  quantity: z.number().int().min(0),
+});
+
+export type UpdateLineQuantityInput = z.infer<typeof UpdateLineQuantitySchema>;
+
 export const CreateProfitRuleSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
