@@ -216,12 +216,11 @@ function MobileItems({ items, quantities, onQtyChange, onDelete, total }: Mobile
             borderBottom: '1px solid rgba(218, 193, 184, 0.15)',
           }}
         >
-          {/* Top row: product name + delete */}
+          {/* Top row: product name + tray badge */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
               gap: 'var(--space-xs)',
               marginBottom: 4,
             }}
@@ -232,8 +231,6 @@ function MobileItems({ items, quantities, onQtyChange, onDelete, total }: Mobile
                 fontSize: '0.85rem',
                 fontWeight: 600,
                 color: 'var(--color-text-primary)',
-                flex: 1,
-                minWidth: 0,
               }}
             >
               {item.recipeName}
@@ -252,24 +249,8 @@ function MobileItems({ items, quantities, onQtyChange, onDelete, total }: Mobile
                 </span>
               )}
             </span>
-            <button
-              type="button"
-              title="Eliminar línea"
-              aria-label={`Eliminar ${item.recipeName}`}
-              onClick={() => void onDelete(item._id)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--color-warning)',
-                padding: 0,
-                flexShrink: 0,
-              }}
-            >
-              <MdDeleteOutline size={18} />
-            </button>
           </div>
-          {/* Bottom row: qty input × price = subtotal */}
+          {/* Bottom row: qty input × price = subtotal, trash on the right */}
           <div
             style={{
               display: 'flex',
@@ -291,6 +272,23 @@ function MobileItems({ items, quantities, onQtyChange, onDelete, total }: Mobile
             />
             <span>× {fmt(item.unitPrice)} =</span>
             <strong style={{ color: 'var(--color-text-primary)' }}>{fmt(item.subtotal)}</strong>
+            <button
+              type="button"
+              title="Eliminar línea"
+              aria-label={`Eliminar ${item.recipeName}`}
+              onClick={() => void onDelete(item._id)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--color-warning)',
+                padding: 0,
+                marginLeft: 'auto',
+                flexShrink: 0,
+              }}
+            >
+              <MdDeleteOutline size={18} />
+            </button>
           </div>
         </div>
       ))}
