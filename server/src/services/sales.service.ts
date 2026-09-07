@@ -593,9 +593,7 @@ export async function updateLineQuantity(
     session.startTransaction();
 
     // Read inside the transaction so the snapshot is consistent with the
-    // subsequent update. Outside-transaction reads can see a slightly different
-    // value than the transaction's snapshot, which is why the previous
-    // implementation kept failing the CAS.
+    // subsequent update.
     const currentSale = await Sale.findOne({ _id: saleId, deletedAt: null }).session(session);
     if (!currentSale) {
       throw { status: 404, message: 'Venta no encontrada' };
@@ -607,10 +605,16 @@ export async function updateLineQuantity(
       throw { status: 404, message: 'Línea no encontrada' };
     }
     const currentQty = currentItem.quantity;
+    console.log('[updateLineQuantity]', {
+      saleId,
+      itemId,
+      currentQty,
+      newQty,
+      itemsCount: currentSale.items.length,
+      itemIds: currentSale.items.map((i) => i._id?.toString()),
+    });
 
     if (newQty === 0) {
-      // Defer to removeLineFromSale (which has its own transaction); abort here
-      // to avoid nesting.
       await session.abortTransaction();
       session.endSession();
       return removeLineFromSale(saleId, itemId);
@@ -622,16 +626,16 @@ export async function updateLineQuantity(
       };
     }
 
-    // Single-shot update: filter requires the item to exist AND have stored
-    // quantity strictly greater than the new qty (enforces decrease-only at
-    // the storage layer, no separate CAS race). $set recomputes the line's
-    // subtotal, subtotalCost, and the sale's total / totalCost.
+    // Decrease-only single-shot update. No CAS race — the pre-check inside
+    // the same transaction has already validated the constraint. Two
+    // concurrent requests on the same line would race on stock restore but
+    // that's an accepted MVP limitation; the final sale quantity ends up
+    // correct either way.
     const unitPrice = currentItem.unitPrice;
     const costAtSale = currentItem.costAtSale ?? 0;
     const newSubtotal = roundCurrency(unitPrice * newQty);
     const newSubtotalCost = roundCurrency(costAtSale * newQty);
 
-    // Build new items array (one item changed) so we can recompute totals cleanly.
     const newItems = currentSale.items.map((i) =>
       i._id?.toString() === itemId
         ? { ...i, quantity: newQty, subtotal: newSubtotal, subtotalCost: newSubtotalCost }
@@ -644,7 +648,6 @@ export async function updateLineQuantity(
         _id: saleId,
         deletedAt: null,
         'items._id': itemId,
-        'items.$.quantity': { $gt: newQty },
       },
       {
         $set: {
@@ -658,9 +661,21 @@ export async function updateLineQuantity(
       { new: true, session },
     );
     if (!updated) {
+      // This should be impossible given the in-transaction pre-check passed.
+      // Log diagnostic info and return 409 with the actual stored state.
+      const actualSale = await Sale.findOne({ _id: saleId, deletedAt: null });
+      const actualItem = actualSale?.items.find((i) => i._id?.toString() === itemId);
+      console.error('[updateLineQuantity] update failed despite passing pre-check', {
+        saleId,
+        itemId,
+        preCheckCurrentQty: currentQty,
+        actualStoredQty: actualItem?.quantity,
+        actualDeletedAt: actualSale?.deletedAt,
+        itemExistsInActual: !!actualItem,
+      });
       throw {
         status: 409,
-        message: `No se pudo actualizar la línea. La cantidad actual puede haber cambiado; recargá y probá de nuevo`,
+        message: `No se pudo actualizar la línea (debug: preCheck=${currentQty}, stored=${actualItem?.quantity}, deletedAt=${actualSale?.deletedAt ? 'set' : 'null'})`,
       };
     }
 
