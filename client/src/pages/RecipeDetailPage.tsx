@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import {
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { MdArrowBack } from 'react-icons/md';
 import { recipesService } from '../services/recipes.service';
 import type { Recipe } from '../types/recipe.types';
@@ -16,19 +20,36 @@ const TAB_LABELS: Record<TabKey, string> = {
   costos: 'Costos',
 };
 
+const VALID_TABS: ReadonlySet<TabKey> = new Set(TAB_ORDER);
+
+function parseTabParam(raw: string | null): TabKey {
+  return raw && VALID_TABS.has(raw as TabKey) ? (raw as TabKey) : 'preparacion';
+}
+
 /**
  * Recipe detail page introduced by the recipe-preparation feature.
  * Replaces the legacy expand-on-card UX with a dedicated screen hosting
  * three tabs (Ingredientes / Preparación / Costos). Mobile-first with
  * safe-area padding for the BottomNav.
+ *
+ * The active tab is driven by the `?tab=` query param so deep links
+ * (e.g. `/recetas/:id?tab=preparacion`) land directly on the right tab.
  */
 export function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>('preparacion');
+
+  const activeTab = parseTabParam(searchParams.get('tab'));
+  const setActiveTab = useCallback(
+    (key: TabKey) => {
+      setSearchParams({ tab: key }, { replace: true });
+    },
+    [setSearchParams],
+  );
 
   useEffect(() => {
     if (!id) return;

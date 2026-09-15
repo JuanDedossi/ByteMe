@@ -6,6 +6,7 @@ import {
   MdCheck,
   MdClose,
   MdAttachMoney,
+  MdMenuBook,
 } from 'react-icons/md';
 import type { Recipe } from '../../types/recipe.types';
 import type { ProfitRule } from '../../types/profit-rule.types';
@@ -35,6 +36,14 @@ export function RecipeCard({
   const handleOpenDetail = () => {
     navigate(`/recetas/${recipe._id}`);
   };
+
+  const handleOpenPreparation = (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    navigate(`/recetas/${recipe._id}?tab=preparacion`);
+  };
+
+  const hasPreparation =
+    !!recipe.preparation && recipe.preparation.steps.length > 0;
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -278,11 +287,23 @@ export function RecipeCard({
         <div
           style={{
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            marginTop: 'var(--space-xs)',
+            marginTop: 'var(--space-sm)',
           }}
         >
+          <button
+            onClick={handleOpenPreparation}
+            style={prepBtnStyle}
+            title={
+              hasPreparation
+                ? 'Ver preparación'
+                : 'Agregar pasos de preparación'
+            }
+          >
+            <MdMenuBook size={14} />
+            {hasPreparation ? 'Preparación' : '+ Preparación'}
+          </button>
           <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
             <button
               onClick={handleEditClick}
@@ -314,4 +335,19 @@ const iconBtnStyle: React.CSSProperties = {
   borderRadius: 'var(--radius-sm)',
   display: 'flex',
   alignItems: 'center',
+};
+
+const prepBtnStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  background: 'rgba(188, 108, 37, 0.12)',
+  color: 'var(--color-primary)',
+  border: 'none',
+  borderRadius: 'var(--radius-full)',
+  padding: '6px 12px',
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px',
 };
