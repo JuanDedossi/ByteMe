@@ -1,15 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MdArrowBack } from 'react-icons/md';
 import { recipesService } from '../services/recipes.service';
 import type { Recipe } from '../types/recipe.types';
+import { IngredientesTab } from '../components/recipes/IngredientesTab';
+import { CostosTab } from '../components/recipes/CostosTab';
+import { PreparationTab } from '../components/recipes/PreparationTab';
+
+type TabKey = 'ingredientes' | 'preparacion' | 'costos';
+
+const TAB_ORDER: TabKey[] = ['ingredientes', 'preparacion', 'costos'];
+const TAB_LABELS: Record<TabKey, string> = {
+  ingredientes: 'Ingredientes',
+  preparacion: 'Preparación',
+  costos: 'Costos',
+};
 
 /**
- * Stub for the recipe detail page introduced by the recipe-preparation feature.
- * PR 3 replaces this stub with the full tabbed implementation (Ingredientes /
- * Preparación / Costos). For now it renders a basic header with the recipe
- * name and a back link so the /recetas/:id route is exercised end-to-end and
- * the typecheck stays green.
+ * Recipe detail page introduced by the recipe-preparation feature.
+ * Replaces the legacy expand-on-card UX with a dedicated screen hosting
+ * three tabs (Ingredientes / Preparación / Costos). Mobile-first with
+ * safe-area padding for the BottomNav.
  */
 export function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +28,7 @@ export function RecipeDetailPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>('preparacion');
 
   useEffect(() => {
     if (!id) return;
@@ -45,12 +57,12 @@ export function RecipeDetailPage() {
     };
   }, [id]);
 
+  const handleUpdated = useCallback((updated: Recipe) => {
+    setRecipe(updated);
+  }, []);
+
   return (
-    <div
-      style={{
-        paddingBottom: '150px',
-      }}
-    >
+    <div style={{ paddingBottom: '150px' }}>
       <div
         style={{
           background: 'var(--color-secondary)',
@@ -88,6 +100,50 @@ export function RecipeDetailPage() {
           {recipe?.name ?? (loading ? 'Cargando...' : 'Receta')}
         </h1>
       </div>
+
+      {/* Segmented tab control */}
+      <div
+        role="tablist"
+        aria-label="Secciones de la receta"
+        style={{
+          display: 'flex',
+          gap: 'var(--space-xs)',
+          padding: 'var(--space-md) var(--space-lg)',
+          background: 'var(--color-surface)',
+          borderBottom: '1px solid rgba(218, 193, 184, 0.3)',
+        }}
+      >
+        {TAB_ORDER.map((key) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={activeTab === key}
+            onClick={() => setActiveTab(key)}
+            style={{
+              flex: 1,
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.8rem',
+              fontWeight: activeTab === key ? 700 : 500,
+              background:
+                activeTab === key
+                  ? 'var(--color-primary)'
+                  : 'transparent',
+              color:
+                activeTab === key
+                  ? 'var(--color-on-primary)'
+                  : 'var(--color-text-secondary)',
+              border: 'none',
+              borderRadius: 'var(--radius-full)',
+              padding: 'var(--space-xs) var(--space-sm)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {TAB_LABELS[key]}
+          </button>
+        ))}
+      </div>
+
       <div style={{ padding: 'var(--space-lg)' }}>
         {error && (
           <p
@@ -100,17 +156,27 @@ export function RecipeDetailPage() {
             {error}
           </p>
         )}
-        {!loading && !error && recipe && (
+        {loading && !recipe && !error && (
           <p
             style={{
               fontFamily: 'var(--font-body)',
-              fontSize: '0.85rem',
               color: 'var(--color-text-secondary)',
+              fontSize: '0.85rem',
+              textAlign: 'center',
+              padding: 'var(--space-2xl)',
             }}
           >
-            Vista detallada de {recipe.name} — las pestañas (Ingredientes,
-            Preparación, Costos) llegan en PR 3.
+            Cargando receta...
           </p>
+        )}
+        {recipe && !error && (
+          <div role="tabpanel">
+            {activeTab === 'ingredientes' && <IngredientesTab recipe={recipe} />}
+            {activeTab === 'preparacion' && (
+              <PreparationTab recipe={recipe} onUpdated={handleUpdated} />
+            )}
+            {activeTab === 'costos' && <CostosTab recipe={recipe} />}
+          </div>
         )}
       </div>
     </div>
