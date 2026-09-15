@@ -14,6 +14,7 @@ import {
 import { buildAccentInsensitiveRegex } from '../utils/normalize';
 import type { IngredientDocument } from '../models/ingredient.model';
 import type { ComplementDocument } from '../models/complement.model';
+import type { UpdatePreparationInput } from '../validation/schemas';
 
 export interface EnrichedRecipe {
   _id: Types.ObjectId;
@@ -55,6 +56,10 @@ export interface EnrichedRecipe {
   isSubRecipe: boolean;
   createdAt: Date;
   updatedAt: Date;
+  preparation?: {
+    steps: { order: number; text: string; ingredientRefs: string[] }[];
+    videoUrl?: string;
+  };
 }
 
 export interface CreateRecipeInput {
@@ -570,6 +575,56 @@ export async function updateRecipeStock(
   const updated = await Recipe.findByIdAndUpdate(
     id,
     { $set: { stock: Math.max(0, dto.stock) } },
+    { new: true },
+  ).exec();
+  if (!updated) throw { status: 404, message: 'Receta no encontrada' };
+  return enrichRecipe(updated as RecipeDocument);
+}
+
+export async function updatePreparation(
+  id: string,
+  dto: UpdatePreparationInput,
+): Promise<EnrichedRecipe> {
+  const Recipe = getRecipeModel();
+  const recipe = (await Recipe.findById(id).exec()) as RecipeDocument | null;
+  if (!recipe) throw { status: 404, message: 'Receta no encontrada' };
+
+  // Collect the set of valid ingredient ref ObjectIds from the recipe's own
+  // ingredients. The set includes both `ingredientId` (regular ingredients)
+  // and `recipeId` (sub-recipes) so steps can reference either kind.
+  const validRefs = new Set<string>();
+  for (const ing of recipe.ingredients ?? []) {
+    const sub = ing as any;
+    if (sub.ingredientId) validRefs.add(sub.ingredientId.toString());
+    if (sub.recipeId) validRefs.add(sub.recipeId.toString());
+  }
+
+  if (dto.steps) {
+    for (const [stepIdx, step] of dto.steps.entries()) {
+      if (!step.ingredientRefs) continue;
+      for (const ref of step.ingredientRefs) {
+        if (!validRefs.has(ref)) {
+          throw {
+            status: 400,
+            message: `Step ${stepIdx + 1} references an ingredient that is not part of this recipe`,
+          };
+        }
+      }
+    }
+  }
+
+  const nextPreparation = {
+    steps: (dto.steps ?? []).map((step) => ({
+      order: step.order,
+      text: step.text,
+      ingredientRefs: (step.ingredientRefs ?? []).map((r) => new Types.ObjectId(r)),
+    })),
+    ...(dto.videoUrl !== undefined ? { videoUrl: dto.videoUrl } : {}),
+  };
+
+  const updated = await Recipe.findByIdAndUpdate(
+    id,
+    { $set: { preparation: nextPreparation } },
     { new: true },
   ).exec();
   if (!updated) throw { status: 404, message: 'Receta no encontrada' };

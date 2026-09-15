@@ -98,6 +98,26 @@ export const UpdateRecipePriceSchema = z.object({
 
 export type UpdateRecipePriceInput = z.infer<typeof UpdateRecipePriceSchema>;
 
+export const UpdatePreparationSchema = z.object({
+  steps: z
+    .array(
+      z.object({
+        order: z.number().int().positive(),
+        text: z.string().trim().min(1),
+        ingredientRefs: z.array(z.string()).optional(),
+      }),
+    )
+    .optional(),
+  videoUrl: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2048)
+    .optional(),
+});
+
+export type UpdatePreparationInput = z.infer<typeof UpdatePreparationSchema>;
+
 export const CreateTraySchema = z.object({
   name: z.string().min(1),
   recipes: z
