@@ -5,6 +5,7 @@ import { CalculatorPage } from './pages/CalculatorPage';
 import { IngredientsPage } from './pages/IngredientsPage';
 import { ProfitRulesPage } from './pages/ProfitRulesPage';
 import { RecipesPage } from './pages/RecipesPage';
+import { RecipeDetailPage } from './pages/RecipeDetailPage';
 import { StockSalesPage } from './pages/StockSalesPage';
 import { TraysPage } from './pages/TraysPage';
 import { SalesHistoryPage } from './pages/SalesHistoryPage';
@@ -35,6 +36,7 @@ function App() {
         <Route path="/" element={<Navigate to="/stock" replace />} />
         <Route path="/ingredientes" element={<IngredientsPage />} />
         <Route path="/recetas" element={<RecipesPage />} />
+        <Route path="/recetas/:id" element={<RecipeDetailPage />} />
         <Route path="/markups" element={<ProfitRulesPage />} />
         <Route path="/stock" element={<StockSalesPage />} />
         <Route path="/bandejas" element={<TraysPage />} />
