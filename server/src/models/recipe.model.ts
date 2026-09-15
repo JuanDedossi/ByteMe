@@ -13,6 +13,17 @@ export interface IRecipeComplement {
   quantity: number;
 }
 
+export interface IPreparationStep {
+  order: number;
+  text: string;
+  ingredientRefs: Types.ObjectId[];
+}
+
+export interface IRecipePreparation {
+  steps: IPreparationStep[];
+  videoUrl?: string;
+}
+
 export interface IRecipe {
   name: string;
   ingredients: IRecipeIngredient[];
@@ -25,6 +36,7 @@ export interface IRecipe {
   stock: number;
   isActive: boolean;
   isSubRecipe: boolean;
+  preparation?: IRecipePreparation;
 }
 
 export type RecipeDocument = IRecipe & Document;
@@ -68,6 +80,23 @@ const RecipeComplementSchema = new Schema(
   { _id: false },
 );
 
+const PreparationStepSchema = new Schema(
+  {
+    order: { type: Number, required: true, min: 1 },
+    text: { type: String, required: true, trim: true },
+    ingredientRefs: [{ type: Schema.Types.ObjectId, required: false }],
+  },
+  { _id: false },
+);
+
+const RecipePreparationSchema = new Schema(
+  {
+    steps: { type: [PreparationStepSchema], default: [] },
+    videoUrl: { type: String, trim: true, default: undefined },
+  },
+  { _id: false },
+);
+
 const RecipeSchema = new Schema<RecipeDocument>(
   {
     name: { type: String, required: true, unique: true, trim: true },
@@ -90,6 +119,7 @@ const RecipeSchema = new Schema<RecipeDocument>(
     stock: { type: Number, required: true, default: 0, min: 0 },
     isActive: { type: Boolean, default: true },
     isSubRecipe: { type: Boolean, default: false },
+    preparation: { type: RecipePreparationSchema, required: false },
   },
   { timestamps: true },
 );
