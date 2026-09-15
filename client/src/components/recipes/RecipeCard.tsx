@@ -1,9 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   MdEdit,
   MdDelete,
-  MdExpandMore,
-  MdExpandLess,
   MdCheck,
   MdClose,
   MdAttachMoney,
@@ -15,7 +14,7 @@ interface RecipeCardProps {
   recipe: Recipe;
   profitRules: ProfitRule[];
   onEditRequest: (recipe: Recipe) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
   onUpdatePrice: (id: string, price: number | null) => Promise<void>;
 }
 
@@ -25,7 +24,7 @@ export function RecipeCard({
   onDelete,
   onUpdatePrice,
 }: RecipeCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const navigate = useNavigate();
   const [editingPrice, setEditingPrice] = useState(false);
   const [editPrice, setEditPrice] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +32,22 @@ export function RecipeCard({
   const fmt = (v: number) =>
     `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const handlePriceEdit = () => {
+  const handleOpenDetail = () => {
+    navigate(`/recetas/${recipe._id}`);
+  };
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEditRequest(recipe);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(recipe._id);
+  };
+
+  const handlePriceEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditPrice(recipe.sellingPrice.toFixed(2));
     setEditingPrice(true);
   };
@@ -50,7 +64,8 @@ export function RecipeCard({
     }
   };
 
-  const handlePriceReset = async () => {
+  const handlePriceReset = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setLoading(true);
     try {
       await onUpdatePrice(recipe._id, null);
@@ -60,17 +75,28 @@ export function RecipeCard({
     }
   };
 
-  const handlePriceCancel = () => {
+  const handlePriceCancel = (e?: React.SyntheticEvent) => {
+    e?.stopPropagation();
     setEditingPrice(false);
   };
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={handleOpenDetail}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleOpenDetail();
+        }
+      }}
       style={{
         background: 'var(--color-surface)',
         borderRadius: 'var(--radius-md)',
         boxShadow: 'var(--shadow-sm)',
         overflow: 'hidden',
+        cursor: 'pointer',
       }}
     >
       {/* Main row */}
@@ -259,25 +285,14 @@ export function RecipeCard({
         >
           <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
             <button
-              onClick={() => onEditRequest(recipe)}
+              onClick={handleEditClick}
               style={iconBtnStyle}
               title="Editar"
             >
               <MdEdit size={18} />
             </button>
             <button
-              onClick={() => setExpanded((v) => !v)}
-              style={iconBtnStyle}
-              title="Ver detalle"
-            >
-              {expanded ? (
-                <MdExpandLess size={18} />
-              ) : (
-                <MdExpandMore size={18} />
-              )}
-            </button>
-            <button
-              onClick={() => onDelete(recipe._id)}
+              onClick={handleDeleteClick}
               style={{ ...iconBtnStyle, color: 'var(--color-error)' }}
               title="Eliminar"
             >
@@ -286,253 +301,6 @@ export function RecipeCard({
           </div>
         </div>
       </div>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div
-          style={{
-            borderTop: '1px solid rgba(218, 193, 184, 0.2)',
-            padding: 'var(--space-md) var(--space-lg)',
-            background: '#f8f4db',
-          }}
-        >
-          <p
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              color: 'var(--color-text-secondary)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              margin: '0 0 var(--space-sm)',
-            }}
-          >
-            Ingredientes
-          </p>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {['Ingrediente', 'Cantidad', 'Costo'].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.7rem',
-                      color: 'var(--color-text-secondary)',
-                      textAlign: 'left',
-                      paddingBottom: 'var(--space-xs)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {recipe.ingredients.map((ing) => (
-                <tr key={ing.ingredientId}>
-                  <td style={tdStyle}>
-                    {ing.isSubRecipe && (
-                      <span
-                        style={{
-                          fontSize: '0.6rem',
-                          fontWeight: 700,
-                          color: 'var(--color-primary)',
-                          marginRight: '4px',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        SR
-                      </span>
-                    )}
-                    {ing.ingredientName}
-                  </td>
-                  <td style={tdStyle}>
-                    {ing.quantity}
-                    {ing.ingredientUnit === 'unidad' ? ' u.' : 'g'}
-                  </td>
-                  <td style={tdStyle}>{fmt(ing.cost)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Complementos table (only when the recipe has any) */}
-          {recipe.complements && recipe.complements.length > 0 && (
-            <>
-              <p
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  color: 'var(--color-text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  margin: 'var(--space-md) 0 var(--space-sm)',
-                }}
-              >
-                Complementos
-              </p>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    {['Complemento', 'Cantidad', 'Costo'].map((h) => (
-                      <th
-                        key={h}
-                        style={{
-                          fontFamily: 'var(--font-body)',
-                          fontSize: '0.7rem',
-                          color: 'var(--color-text-secondary)',
-                          textAlign: 'left',
-                          paddingBottom: 'var(--space-xs)',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {recipe.complements.map((c) => (
-                    <tr key={c.complementId}>
-                      <td style={tdStyle}>
-                        {/* P4 disambiguation: name (unit) */}
-                        {c.complementName}
-                        {c.complementUnit ? ` (${c.complementUnit})` : ''}
-                      </td>
-                      <td style={tdStyle}>
-                        {c.quantity}
-                        {c.complementUnit === 'metro'
-                          ? ' m'
-                          : c.complementUnit === 'unidad'
-                            ? ' u.'
-                            : ''}
-                      </td>
-                      <td style={tdStyle}>
-                        {c.cost !== undefined ? fmt(c.cost) : ''}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
-          )}
-
-          <div
-            style={{
-              marginTop: 'var(--space-sm)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '2px',
-            }}
-          >
-            {/*
-             * REQ-REC-14: when complements exist, show BOTH costBase and
-             * costTotal with disambiguating labels. Otherwise show one line
-             * (costBase === costTotal when no complements).
-             */}
-            {recipe.complements && recipe.complements.length > 0 ? (
-              <>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.8rem',
-                    color: 'var(--color-text-secondary)',
-                  }}
-                >
-                  Costo base (para usar en bandejas):{' '}
-                  <strong>{fmt(recipe.costBase)}</strong>
-                </span>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.8rem',
-                    color: 'var(--color-text-secondary)',
-                  }}
-                >
-                  Costo total (con empaque, para venta individual):{' '}
-                  <strong>{fmt(recipe.costTotal)}</strong>
-                </span>
-              </>
-            ) : (
-              <span
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.8rem',
-                  color: 'var(--color-text-secondary)',
-                }}
-              >
-                Costo producción: <strong>{fmt(recipe.cost)}</strong>
-              </span>
-            )}
-            {recipe.sellUnit === 'unidad' && recipe.yieldUnits > 1 && (
-              <span
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.8rem',
-                  color: 'var(--color-text-secondary)',
-                }}
-              >
-                Rendimiento: <strong>{recipe.yieldUnits} unidades</strong>
-              </span>
-            )}
-            <span
-              style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.8rem',
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              Markup ({recipe.markupPercentage}%):{' '}
-              <strong>
-                {fmt(
-                  (recipe.sellUnit === 'kg'
-                    ? recipe.sellingPrice * (recipe.yieldGrams / 1000)
-                    : recipe.sellingPrice * recipe.yieldUnits) - recipe.cost,
-                )}
-              </strong>
-            </span>
-            {recipe.sellUnit === 'kg' ? (
-              <>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.9rem',
-                    fontWeight: 700,
-                    color: 'var(--color-primary)',
-                  }}
-                >
-                  Precio por 100g: {fmt(recipe.pricePer100g)}
-                </span>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.75rem',
-                    color: 'var(--color-text-secondary)',
-                  }}
-                >
-                  ({fmt(recipe.sellingPrice)}/kg)
-                </span>
-              </>
-            ) : (
-              <span
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.9rem',
-                  fontWeight: 700,
-                  color: 'var(--color-primary)',
-                }}
-              >
-                {recipe.yieldUnits > 1
-                  ? `Precio por unidad (rinde ${recipe.yieldUnits}): ${fmt(recipe.sellingPrice)}`
-                  : `Precio de venta: ${fmt(recipe.sellingPrice)}`}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -546,11 +314,4 @@ const iconBtnStyle: React.CSSProperties = {
   borderRadius: 'var(--radius-sm)',
   display: 'flex',
   alignItems: 'center',
-};
-
-const tdStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-body)',
-  fontSize: '0.8rem',
-  color: 'var(--color-text-primary)',
-  padding: '2px 0',
 };

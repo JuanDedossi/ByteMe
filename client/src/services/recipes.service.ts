@@ -1,5 +1,10 @@
 import api from './api';
-import type { Recipe, CreateRecipePayload, UpdateRecipePayload } from '../types/recipe.types';
+import type {
+  Recipe,
+  CreateRecipePayload,
+  UpdateRecipePayload,
+  UpdatePreparationPayload,
+} from '../types/recipe.types';
 
 export interface RecipesListResponse {
   success: boolean;
@@ -42,6 +47,14 @@ export const recipesService = {
 
   async updatePrice(id: string, customSellingPrice: number | null): Promise<Recipe> {
     const { data } = await api.patch(`/recipes/${id}/price`, { customSellingPrice });
+    return data.data;
+  },
+
+  async updatePreparation(
+    id: string,
+    payload: UpdatePreparationPayload,
+  ): Promise<Recipe> {
+    const { data } = await api.patch(`/recipes/${id}/preparation`, payload);
     return data.data;
   },
 
