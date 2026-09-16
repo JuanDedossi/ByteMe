@@ -574,7 +574,7 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
       <div
         style={{
           display: 'flex',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
           gap: 'var(--space-sm)',
           marginBottom: 'var(--space-sm)',
         }}
@@ -708,29 +708,6 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
           </li>
         ))}
       </ol>
-
-      {prep.videoUrl && prep.videoUrl.trim() !== '' && (
-        <p
-          style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: '0.7rem',
-            color: 'var(--color-text-secondary)',
-            margin: 'var(--space-md) 0 0',
-            textAlign: 'center',
-          }}
-        >
-          ¿No funciona el botón? Abrí el link manualmente:
-          <br />
-          <a
-            href={prep.videoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: 'var(--color-primary)', wordBreak: 'break-all' }}
-          >
-            {prep.videoUrl}
-          </a>
-        </p>
-      )}
     </div>
   );
 }
