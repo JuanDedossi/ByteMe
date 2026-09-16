@@ -18,7 +18,7 @@ export interface RecipeComplement {
 export interface PreparationStep {
   order: number;
   text: string;
-  ingredientRefs: string[];
+  ingredientItems: { ingredientId: string; quantity: number }[];
 }
 
 export interface Preparation {

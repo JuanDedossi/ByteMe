@@ -57,7 +57,11 @@ export interface EnrichedRecipe {
   createdAt: Date;
   updatedAt: Date;
   preparation?: {
-    steps: { order: number; text: string; ingredientRefs: string[] }[];
+    steps: {
+      order: number;
+      text: string;
+      ingredientItems: { ingredientId: string; quantity: number }[];
+    }[];
     videoUrl?: string;
   };
 }
@@ -601,12 +605,18 @@ export async function updatePreparation(
 
   if (dto.steps) {
     for (const [stepIdx, step] of dto.steps.entries()) {
-      if (!step.ingredientRefs) continue;
-      for (const ref of step.ingredientRefs) {
-        if (!validRefs.has(ref)) {
+      if (!step.ingredientItems) continue;
+      for (const item of step.ingredientItems) {
+        if (!validRefs.has(item.ingredientId)) {
           throw {
             status: 400,
             message: `Step ${stepIdx + 1} references an ingredient that is not part of this recipe`,
+          };
+        }
+        if (item.quantity < 0) {
+          throw {
+            status: 400,
+            message: `Step ${stepIdx + 1} has a negative ingredient quantity`,
           };
         }
       }
@@ -617,7 +627,10 @@ export async function updatePreparation(
     steps: (dto.steps ?? []).map((step) => ({
       order: step.order,
       text: step.text,
-      ingredientRefs: (step.ingredientRefs ?? []).map((r) => new Types.ObjectId(r)),
+      ingredientItems: (step.ingredientItems ?? []).map((item) => ({
+        ingredientId: new Types.ObjectId(item.ingredientId),
+        quantity: item.quantity,
+      })),
     })),
     ...(dto.videoUrl !== undefined ? { videoUrl: dto.videoUrl } : {}),
   };

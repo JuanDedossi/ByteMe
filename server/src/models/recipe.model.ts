@@ -84,7 +84,16 @@ const PreparationStepSchema = new Schema(
   {
     order: { type: Number, required: true, min: 1 },
     text: { type: String, required: true, trim: true },
-    ingredientRefs: [{ type: Schema.Types.ObjectId, required: false }],
+    ingredientItems: [
+      {
+        ingredientId: {
+          type: Schema.Types.ObjectId,
+          required: true,
+          ref: 'Ingredient',
+        },
+        quantity: { type: Number, required: true, min: 0 },
+      },
+    ],
   },
   { _id: false },
 );
