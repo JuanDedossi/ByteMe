@@ -98,6 +98,11 @@ export interface UpdateStockInput {
   stock: number;
 }
 
+export interface UpdatePreparationResult {
+  recipe: EnrichedRecipe;
+  warnings: string[];
+}
+
 const MAX_SUB_RECIPE_DEPTH = 10;
 
 function validateKgYield(sellUnit: string, yieldGrams?: number): void {
@@ -588,7 +593,7 @@ export async function updateRecipeStock(
 export async function updatePreparation(
   id: string,
   dto: UpdatePreparationInput,
-): Promise<EnrichedRecipe> {
+): Promise<UpdatePreparationResult> {
   const Recipe = getRecipeModel();
   const recipe = (await Recipe.findById(id).exec()) as RecipeDocument | null;
   if (!recipe) throw { status: 404, message: 'Receta no encontrada' };
@@ -638,8 +643,14 @@ export async function updatePreparation(
   // Aggregate per-ingredient totals from the saved steps. The recipe's
   // own ingredient quantities flow from these totals so the recipe
   // reflects how it is actually used in the prep (e.g. flour used in
-  // step 1 + step 5 sums to the recipe's total flour). Ingredients not
-  // referenced in any step keep their existing quantity.
+  // step 1 + step 5 sums to the recipe's total flour). Asymmetric
+  // handling on direction:
+  //   - sum > recipe.quantity  -> recipe grows to match (silent update)
+  //   - sum < recipe.quantity  -> recipe unchanged, a warning is added
+  //     so the user can decide whether to add the missing steps or
+  //     accept the shrink manually.
+  //   - sum == recipe.quantity -> no-op
+  //   - ingredient unreferenced -> no-op (untouched)
   const totalsByRefId = new Map<string, number>();
   for (const step of dto.steps ?? []) {
     for (const item of step.ingredientItems ?? []) {
@@ -650,6 +661,21 @@ export async function updatePreparation(
     }
   }
 
+  // Build name lookup so warnings can say "Harina: ...", not "ObjectId abc123".
+  const referencedIds = [...totalsByRefId.keys()];
+  const [ingredients, subRecipes] = await Promise.all([
+    findIngredientsByIds(referencedIds),
+    Recipe.find({ _id: { $in: referencedIds } }, { name: 1 }).exec(),
+  ]);
+  const nameByRef = new Map<string, string>();
+  for (const ing of ingredients) {
+    nameByRef.set(ing._id.toString(), ing.name);
+  }
+  for (const sr of subRecipes) {
+    nameByRef.set(sr._id.toString(), sr.name);
+  }
+
+  const warnings: string[] = [];
   const newIngredients = (recipe.ingredients ?? []).map((ing) => {
     const sub = ing as any;
     const refId =
@@ -657,10 +683,49 @@ export async function updatePreparation(
         ? sub.recipeId?.toString()
         : sub.ingredientId?.toString();
     if (!refId) return ing;
+
     const total = totalsByRefId.get(refId);
     if (total === undefined) return ing;
-    return { ...sub, quantity: total };
+
+    if (total === ing.quantity) return ing;
+
+    if (total > ing.quantity) {
+      // Over-allocation: grow the recipe to match (silent update).
+      return { ...sub, quantity: total };
+    }
+
+    // Under-allocation: warn, leave recipe unchanged.
+    const name = nameByRef.get(refId) ?? 'ingrediente';
+    const unit = sub.ingredientUnit === 'unidad' ? 'u.' : 'g';
+    const diff = ing.quantity - total;
+    warnings.push(
+      `${name}: ${total}${unit} en pasos, ${ing.quantity}${unit} en receta — ${diff}${unit} sin asignar`,
+    );
+    return ing;
   });
+
+  // Only update if something actually changed (avoids unnecessary
+  // customSellingPrice reset when totals already match).
+  const quantitiesChanged = newIngredients.some((ing, idx) => {
+    const orig = recipe.ingredients?.[idx];
+    if (!orig) return true;
+    return (ing as any).quantity !== (orig as any).quantity;
+  });
+
+  if (!quantitiesChanged) {
+    // Only the preparation sub-document changed; persist it without
+    // touching customSellingPrice.
+    const updated = await Recipe.findByIdAndUpdate(
+      id,
+      { $set: { preparation: nextPreparation } },
+      { new: true },
+    ).exec();
+    if (!updated) throw { status: 404, message: 'Receta no encontrada' };
+    return {
+      recipe: await enrichRecipe(updated as RecipeDocument),
+      warnings,
+    };
+  }
 
   const updated = await Recipe.findByIdAndUpdate(
     id,
@@ -669,15 +734,17 @@ export async function updatePreparation(
         preparation: nextPreparation,
         ingredients: newIngredients,
         // Underlying cost changed; reset any customSellingPrice so the
-        // auto-computed selling price wins (mirrors updateRecipe's
-        // behavior when ingredients change).
+        // auto-computed selling price wins.
         customSellingPrice: null,
       },
     },
     { new: true },
   ).exec();
   if (!updated) throw { status: 404, message: 'Receta no encontrada' };
-  return enrichRecipe(updated as RecipeDocument);
+  return {
+    recipe: await enrichRecipe(updated as RecipeDocument),
+    warnings,
+  };
 }
 
 export async function deleteRecipe(id: string): Promise<void> {

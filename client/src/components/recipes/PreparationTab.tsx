@@ -132,15 +132,23 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
     setEditing(false);
   };
 
+  const [notices, setNotices] = useState<string[]>([]);
+
   const saveEdit = async () => {
     if (!draft) return;
     setSaving(true);
     setError(null);
     try {
-      const updated = await recipesService.updatePreparation(recipe._id, draft);
+      const { recipe: updated, warnings } =
+        await recipesService.updatePreparation(recipe._id, draft);
       onUpdated(updated);
       setEditing(false);
       setDraft(null);
+      // Surface under-assignment warnings as a post-save banner; the prep
+      // already saved (recipe.ingredients[i].quantity was NOT shrunk for
+      // the under-assigned items) so the user can decide whether to fix
+      // the prep or accept the recipe as-is.
+      setNotices(warnings);
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'message' in err
@@ -505,6 +513,72 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
         >
           {error}
         </p>
+      )}
+
+      {notices.length > 0 && (
+        <div
+          role="alert"
+          style={{
+            background: 'rgba(221, 138, 23, 0.1)',
+            border: '1px solid var(--color-warning, #dd8a17)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-sm) var(--space-md)',
+            marginBottom: 'var(--space-sm)',
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.8rem',
+            color: 'var(--color-text-primary)',
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontWeight: 700,
+              marginBottom: 'var(--space-xs)',
+            }}
+          >
+            <span>
+              {notices.length === 1
+                ? '1 ingrediente subasignado'
+                : `${notices.length} ingredientes subasignados`}
+            </span>
+            <button
+              onClick={() => setNotices([])}
+              aria-label="Cerrar aviso"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'inherit',
+                padding: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              <MdClose size={14} />
+            </button>
+          </div>
+          <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+            {notices.map((msg, idx) => (
+              <li key={idx} style={{ marginBottom: '2px' }}>
+                {msg}
+              </li>
+            ))}
+          </ul>
+          <p
+            style={{
+              marginTop: 'var(--space-xs)',
+              fontSize: '0.75rem',
+              opacity: 0.85,
+            }}
+          >
+            Guardado igual. La receta mantiene su cantidad original; podés
+            agregar más pasos con este ingrediente o ajustar la cantidad
+            manualmente.
+          </p>
+        </div>
       )}
 
       <div
