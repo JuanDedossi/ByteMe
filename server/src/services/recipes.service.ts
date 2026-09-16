@@ -697,9 +697,6 @@ export async function updatePreparation(
       // hydrated subdocs — when Mongoose persists the array via $set it
       // reads `_doc.quantity` (the original) and ignores the top-level
       // override, so the recipe never grew.
-      console.log(
-        `[updatePreparation] growing ${nameByRef.get(refId)}: ${ing.quantity} -> ${total}`,
-      );
       const next: Record<string, unknown> = {
         type: sub.type,
         quantity: total,
@@ -755,10 +752,6 @@ export async function updatePreparation(
     },
     { new: true },
   ).exec();
-  console.log(
-    `[updatePreparation] saved ingredients for ${id}:`,
-    JSON.stringify(newIngredients),
-  );
   if (!updated) throw { status: 404, message: 'Receta no encontrada' };
   return {
     recipe: await enrichRecipe(updated as RecipeDocument),

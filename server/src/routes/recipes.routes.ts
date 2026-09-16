@@ -104,14 +104,9 @@ router.patch('/:id/price', validate(UpdateRecipePriceSchema), async (req: Reques
 router.patch('/:id/preparation', validate(UpdatePreparationSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    console.error(
-      `[route] PATCH /:id/preparation id=${id} body=${JSON.stringify(req.body)}`,
-    );
     const data = await updatePreparation(id, req.body);
-    console.error(`[route] PATCH /:id/preparation id=${id} OK`);
     res.json({ success: true, data });
   } catch (err) {
-    console.error(`[route] PATCH /:id/preparation id=${req.params.id} ERROR`, err);
     next(err);
   }
 });

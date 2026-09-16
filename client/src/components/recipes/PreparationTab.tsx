@@ -164,16 +164,10 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
     if (!draft) return;
     setSaving(true);
     setError(null);
-    console.log(
-      `[client] saveEdit start recipe=${recipe._id} steps=${draft.steps.length}`,
-    );
     try {
       const { recipe: updated } = await recipesService.updatePreparation(
         recipe._id,
         draft,
-      );
-      console.log('[client] saveEdit ok, new ingredient counts:',
-        updated.ingredients.map((i) => `${i.ingredientName}:${i.quantity}`).join(', '),
       );
       onUpdated(updated);
       setEditing(false);
@@ -181,7 +175,6 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
       // The persistent under-assignment banner is recomputed from the
       // updated recipe on next render; no extra state needed here.
     } catch (err: unknown) {
-      console.error('[client] saveEdit failed', err);
       const msg =
         err && typeof err === 'object' && 'message' in err
           ? String((err as { message: unknown }).message)
