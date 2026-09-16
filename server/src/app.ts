@@ -24,6 +24,25 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Debug beacon for LAN/QA flows where the phone browser can't easily
+// surface DevTools. The client posts a JSON blob here whenever an
+// axios request fails; we print it to stdout so it lands in the
+// server terminal. Mounted BEFORE authMiddleware and routes so the
+// beacon always lands even when the failing request itself was 401.
+app.post('/api/_debug/log', (req, res) => {
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk;
+  });
+  req.on('end', () => {
+    console.log(`[client-debug ${new Date().toISOString()}] ${body}`);
+    res.status(204).end();
+  });
+  req.on('error', () => {
+    res.status(400).end();
+  });
+});
+
 // CORS: parse comma-separated list of allowed origins from env, or fall
 // back to '*' for dev convenience. Single origin like 'http://x.com' is
 // also accepted (split yields a 1-element array). This matters when
