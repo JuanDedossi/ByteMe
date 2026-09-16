@@ -826,7 +826,7 @@ function ChipPicker({
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'center',
-        zIndex: 100,
+        zIndex: 200,
       }}
     >
       <div
@@ -838,8 +838,11 @@ function ChipPicker({
           borderTopLeftRadius: 'var(--radius-lg)',
           borderTopRightRadius: 'var(--radius-lg)',
           padding: 'var(--space-lg)',
+          paddingBottom:
+            'calc(var(--space-lg) + env(safe-area-inset-bottom))',
           maxHeight: '70vh',
           overflowY: 'auto',
+          boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.15)',
         }}
       >
         <div
