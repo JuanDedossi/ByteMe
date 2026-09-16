@@ -83,7 +83,7 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
    * navigation without server round-trip state.
    */
   const underAssignments = useMemo(() => {
-    const names: string[] = [];
+    const items: { name: string; missing: number; unit: string }[] = [];
     for (const ing of recipe.ingredients) {
       const total = (preparation?.steps ?? []).reduce((sum, step) => {
         return (
@@ -94,10 +94,14 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
         );
       }, 0);
       if (total < ing.quantity) {
-        names.push(ing.ingredientName);
+        items.push({
+          name: ing.ingredientName,
+          missing: ing.quantity - total,
+          unit: ing.ingredientUnit === 'unidad' ? 'u.' : 'g',
+        });
       }
     }
-    return names;
+    return items;
   }, [recipe.ingredients, preparation?.steps]);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,10 +164,16 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
     if (!draft) return;
     setSaving(true);
     setError(null);
+    console.log(
+      `[client] saveEdit start recipe=${recipe._id} steps=${draft.steps.length}`,
+    );
     try {
       const { recipe: updated } = await recipesService.updatePreparation(
         recipe._id,
         draft,
+      );
+      console.log('[client] saveEdit ok, new ingredient counts:',
+        updated.ingredients.map((i) => `${i.ingredientName}:${i.quantity}`).join(', '),
       );
       onUpdated(updated);
       setEditing(false);
@@ -171,6 +181,7 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
       // The persistent under-assignment banner is recomputed from the
       // updated recipe on next render; no extra state needed here.
     } catch (err: unknown) {
+      console.error('[client] saveEdit failed', err);
       const msg =
         err && typeof err === 'object' && 'message' in err
           ? String((err as { message: unknown }).message)
@@ -558,7 +569,11 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
             {underAssignments.length === 1
               ? '1 ingrediente sin asignar: '
               : `${underAssignments.length} ingredientes sin asignar: `}
-            <strong>{underAssignments.join(', ')}</strong>
+            <strong>
+              {underAssignments
+                .map((item) => `${item.name} (${item.missing}${item.unit})`)
+                .join(', ')}
+            </strong>
           </span>
         </div>
       )}
