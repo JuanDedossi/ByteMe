@@ -17,6 +17,36 @@ import type {
   RecipeIngredient,
 } from '../../types/recipe.types';
 
+type Mode =
+  | { kind: 'edit'; draft: Preparation }
+  | { kind: 'empty' }
+  | { kind: 'read'; preparation: Preparation };
+
+/**
+ * Single source of truth for which render branch the tab is in.
+ *
+ * Priority is fixed: user-initiated state (editing + draft) wins over
+ * data-derived state (no preparation or zero steps). Without this
+ * priority, tapping "Agregar preparación" from the empty state would
+ * fail — `preparation` is still undefined on the next render, so a
+ * naive first-match-if would re-show the empty state and the editor
+ * would never open. Reordering the original two-if chain caused this
+ * bug three times in one cycle, so the priority is now isolated here.
+ *
+ * Each variant carries the narrowed data the corresponding branch
+ * needs, so TypeScript can type-check the consumers without in-component
+ * guards.
+ */
+function determineMode(
+  preparation: Preparation | undefined,
+  editing: boolean,
+  draft: Preparation | null,
+): Mode {
+  if (editing && draft) return { kind: 'edit', draft };
+  if (!preparation || preparation.steps.length === 0) return { kind: 'empty' };
+  return { kind: 'read', preparation };
+}
+
 interface PreparationTabProps {
   recipe: Recipe;
   onUpdated: (recipe: Recipe) => void;
@@ -239,13 +269,17 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // ---- Edit mode ----
-  // NOTE: edit mode must take precedence over the empty state below — when
-  // the user taps "Agregar preparación" from the empty state, `preparation`
-  // is still undefined/empty on the next render, so the empty-state branch
-  // would win and the editor would never appear.
+  // The active render branch is decided once, in priority order, by
+  // determineMode() above. This avoids the recurring bug where the
+  // edit/empty state branches were re-ordered to put empty state
+  // first, breaking the "Agregar preparación" flow.
 
-  if (editing && draft) {
+  const mode = determineMode(preparation, editing, draft);
+
+  // ---- Edit mode ----
+
+  if (mode.kind === 'edit') {
+    const { draft } = mode;
     return (
       <div>
         {error && (
@@ -400,7 +434,7 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
 
   // ---- Empty state ----
 
-  if (!preparation || preparation.steps.length === 0) {
+  if (mode.kind === 'empty') {
     return (
       <div
         style={{
@@ -450,7 +484,13 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
     );
   }
 
-  // ---- Read mode ----
+  // ---- Read mode (default) ----
+
+  // mode.kind === 'read' here so mode.preparation is narrowed to Preparation
+  // (not Preparation | undefined as in the early-return branches). Re-alias
+  // it to a local name to avoid colliding with the outer `preparation`
+  // variable that the editing + state logic also uses.
+  const { preparation: prep } = mode;
 
   return (
     <div>
@@ -475,9 +515,9 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
           marginBottom: 'var(--space-sm)',
         }}
       >
-        {preparation.videoUrl && preparation.videoUrl.trim() !== '' && (
+        {prep.videoUrl && prep.videoUrl.trim() !== '' && (
           <button
-            onClick={() => openVideo(preparation.videoUrl!)}
+            onClick={() => openVideo(prep.videoUrl!)}
             style={primaryBtnStyle}
           >
             <MdOpenInNew size={14} />
@@ -577,7 +617,7 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
         ))}
       </ol>
 
-      {preparation.videoUrl && preparation.videoUrl.trim() !== '' && (
+      {prep.videoUrl && prep.videoUrl.trim() !== '' && (
         <p
           style={{
             fontFamily: 'var(--font-body)',
@@ -590,12 +630,12 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
           ¿No funciona el botón? Abrí el link manualmente:
           <br />
           <a
-            href={preparation.videoUrl}
+            href={prep.videoUrl}
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'var(--color-primary)', wordBreak: 'break-all' }}
           >
-            {preparation.videoUrl}
+            {prep.videoUrl}
           </a>
         </p>
       )}
