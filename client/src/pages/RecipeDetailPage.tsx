@@ -8,16 +8,14 @@ import { MdArrowBack } from 'react-icons/md';
 import { recipesService } from '../services/recipes.service';
 import type { Recipe } from '../types/recipe.types';
 import { IngredientesTab } from '../components/recipes/IngredientesTab';
-import { CostosTab } from '../components/recipes/CostosTab';
 import { PreparationTab } from '../components/recipes/PreparationTab';
 
-type TabKey = 'ingredientes' | 'preparacion' | 'costos';
+type TabKey = 'ingredientes' | 'preparacion';
 
-const TAB_ORDER: TabKey[] = ['ingredientes', 'preparacion', 'costos'];
+const TAB_ORDER: TabKey[] = ['ingredientes', 'preparacion'];
 const TAB_LABELS: Record<TabKey, string> = {
   ingredientes: 'Ingredientes',
   preparacion: 'Preparación',
-  costos: 'Costos',
 };
 
 const VALID_TABS: ReadonlySet<TabKey> = new Set(TAB_ORDER);
@@ -29,8 +27,13 @@ function parseTabParam(raw: string | null): TabKey {
 /**
  * Recipe detail page introduced by the recipe-preparation feature.
  * Replaces the legacy expand-on-card UX with a dedicated screen hosting
- * three tabs (Ingredientes / Preparación / Costos). Mobile-first with
- * safe-area padding for the BottomNav.
+ * two tabs (Ingredientes / Preparación). Mobile-first with safe-area
+ * padding for the BottomNav.
+ *
+ * The Costos tab that existed in PR 3 was removed: the price is already
+ * visible on RecipeCard and the cost breakdown overlaps conceptually
+ * with the Ingredientes tab. If we ever need it back, drop the
+ * CostosTab import and add 'costos' to TabKey + TAB_ORDER.
  *
  * The active tab is driven by the `?tab=` query param so deep links
  * (e.g. `/recetas/:id?tab=preparacion`) land directly on the right tab.
@@ -196,7 +199,6 @@ export function RecipeDetailPage() {
             {activeTab === 'preparacion' && (
               <PreparationTab recipe={recipe} onUpdated={handleUpdated} />
             )}
-            {activeTab === 'costos' && <CostosTab recipe={recipe} />}
           </div>
         )}
       </div>
