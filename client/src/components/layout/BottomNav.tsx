@@ -11,8 +11,6 @@ import {
   MdBarChart,
 } from 'react-icons/md';
 
-const USER_LABEL_KEY = 'mordisquitos-user';
-
 const navItems = [
   { path: '/stock', icon: MdInventory2, label: 'Stock' },
   { path: '/recetas', icon: MdMenuBook, label: 'Recetas' },
@@ -28,7 +26,6 @@ const navItems = [
 export function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const userLabel = localStorage.getItem(USER_LABEL_KEY);
 
   return (
     <nav
@@ -45,28 +42,6 @@ export function BottomNav() {
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      {userLabel && userLabel !== 'default' && userLabel !== 'dev' && (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            padding: '4px var(--space-md) 0',
-          }}
-        >
-          <span
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.6rem',
-              color: 'var(--color-text-secondary)',
-              background: 'rgba(218, 193, 184, 0.3)',
-              padding: '2px 8px',
-              borderRadius: 'var(--radius-full)',
-            }}
-          >
-            {userLabel}
-          </span>
-        </div>
-      )}
       <div
         style={{
           display: 'flex',
