@@ -6,9 +6,12 @@ import {
   MdClose,
   MdDelete,
   MdEdit,
+  MdLink,
   MdPlayCircle,
   MdPlayCircleOutline,
 } from 'react-icons/md';
+import { SiInstagram, SiTiktok, SiYoutube } from 'react-icons/si';
+import type { VideoPlatform } from '../../types/recipe.types';
 import { recipesService } from '../../services/recipes.service';
 import type {
   Preparation,
@@ -610,8 +613,17 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
               <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>
                 Ver preparación
               </span>
-              <span style={{ fontSize: '0.65rem', opacity: 0.85 }}>
-                Tutorial en video
+              <span
+                style={{
+                  fontSize: '0.65rem',
+                  opacity: 0.85,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <PlatformIcon platform={prep.videoPlatform} size={11} />
+                {platformCaption(prep.videoPlatform)}
               </span>
             </span>
           </button>
@@ -1230,6 +1242,32 @@ const iconBtnStyle: React.CSSProperties = {
 };
 
 // ---- Helpers ----
+
+function PlatformIcon({
+  platform,
+  size,
+}: {
+  platform?: VideoPlatform;
+  size: number;
+}) {
+  if (platform === 'instagram') return <SiInstagram size={size} />;
+  if (platform === 'tiktok') return <SiTiktok size={size} />;
+  if (platform === 'youtube') return <SiYoutube size={size} />;
+  return <MdLink size={size} />;
+}
+
+function platformCaption(platform?: VideoPlatform): string {
+  switch (platform) {
+    case 'instagram':
+      return 'Tutorial en Instagram';
+    case 'tiktok':
+      return 'Tutorial en TikTok';
+    case 'youtube':
+      return 'Tutorial en YouTube';
+    default:
+      return 'Tutorial en video';
+  }
+}
 
 function isInstagramOrTikTok(url: string): boolean {
   const lower = url.toLowerCase();

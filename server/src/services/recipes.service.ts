@@ -63,6 +63,7 @@ export interface EnrichedRecipe {
       ingredientItems: { ingredientId: string; quantity: number }[];
     }[];
     videoUrl?: string;
+    videoPlatform?: 'instagram' | 'tiktok' | 'youtube' | 'other';
   };
 }
 
@@ -104,6 +105,30 @@ export interface UpdatePreparationResult {
 }
 
 const MAX_SUB_RECIPE_DEPTH = 10;
+
+/**
+ * Best-effort detection of the video platform from a URL. We don't
+ * validate ownership or type — just match the host. If we don't
+ * recognize the host, we tag it as 'other' and the URL still works
+ * (the client opens it as a generic external link). Detected
+ * server-side on every prep save so the client never has to think
+ * about the platform — they paste the URL, we classify it.
+ */
+function detectVideoPlatform(
+  url: string,
+): 'instagram' | 'tiktok' | 'youtube' | 'other' {
+  const lower = url.toLowerCase();
+  if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
+    return 'instagram';
+  }
+  if (lower.includes('tiktok.com')) {
+    return 'tiktok';
+  }
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    return 'youtube';
+  }
+  return 'other';
+}
 
 function validateKgYield(sellUnit: string, yieldGrams?: number): void {
   if (sellUnit === 'kg' && (yieldGrams === undefined || yieldGrams <= 0)) {
@@ -628,7 +653,7 @@ export async function updatePreparation(
     }
   }
 
-  const nextPreparation = {
+  const nextPreparation: Record<string, unknown> = {
     steps: (dto.steps ?? []).map((step) => ({
       order: step.order,
       text: step.text,
@@ -637,8 +662,15 @@ export async function updatePreparation(
         quantity: item.quantity,
       })),
     })),
-    ...(dto.videoUrl !== undefined ? { videoUrl: dto.videoUrl } : {}),
   };
+  if (dto.videoUrl !== undefined && dto.videoUrl !== '') {
+    // When the URL is set, also stamp the detected platform. When the
+    // URL is cleared (dto.videoUrl === '' or undefined) we leave both
+    // fields out of the replacement object so the $set clears them in
+    // MongoDB.
+    nextPreparation.videoUrl = dto.videoUrl;
+    nextPreparation.videoPlatform = detectVideoPlatform(dto.videoUrl);
+  }
 
   // Aggregate per-ingredient totals from the saved steps. The recipe's
   // own ingredient quantities flow from these totals so the recipe

@@ -102,6 +102,11 @@ const RecipePreparationSchema = new Schema(
   {
     steps: { type: [PreparationStepSchema], default: [] },
     videoUrl: { type: String, trim: true, default: undefined },
+    videoPlatform: {
+      type: String,
+      enum: ['instagram', 'tiktok', 'youtube', 'other'],
+      default: undefined,
+    },
   },
   { _id: false },
 );
