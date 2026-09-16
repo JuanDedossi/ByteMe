@@ -691,10 +691,22 @@ export async function updatePreparation(
 
     if (total > ing.quantity) {
       // Over-allocation: grow the recipe to match (silent update).
+      // Hand-build a plain object with ONLY schema fields. Spreading the
+      // Mongoose subdoc (`{ ...sub, quantity: total }`) is unsafe because
+      // Mongoose's internal `__parentArray`/`_doc`/etc. are enumerable on
+      // hydrated subdocs — when Mongoose persists the array via $set it
+      // reads `_doc.quantity` (the original) and ignores the top-level
+      // override, so the recipe never grew.
       console.log(
         `[updatePreparation] growing ${nameByRef.get(refId)}: ${ing.quantity} -> ${total}`,
       );
-      return { ...sub, quantity: total };
+      const next: Record<string, unknown> = {
+        type: sub.type,
+        quantity: total,
+      };
+      if (sub.ingredientId) next.ingredientId = sub.ingredientId;
+      else if (sub.recipeId) next.recipeId = sub.recipeId;
+      return next;
     }
 
     // Under-allocation: warn, leave recipe unchanged.
