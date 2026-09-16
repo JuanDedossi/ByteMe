@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   MdAdd,
   MdArrowUpward,
@@ -645,6 +645,59 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
 
 // ---- Sub-components ----
 
+/**
+ * Numeric input with local draft state so the user can fully clear the
+ * field, type a replacement, and commit only on blur/Enter. The naive
+ * approach — `onChange={e => onUpdate(parseFloat(e.target.value))}` —
+ * fights every keystroke that produces NaN (empty input, leading dot,
+ * etc.) because React re-applies the controlled value and makes the
+ * field feel locked. Local state decouples the displayed text from the
+ * parent state and commits the parsed number on blur.
+ */
+function ItemQtyInput({
+  initialValue,
+  onCommit,
+}: {
+  initialValue: number;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState<string>(String(initialValue));
+
+  // Sync the local draft when the external value changes for reasons
+  // other than this input (e.g. picker adds a new item, undo, parent reset).
+  useEffect(() => {
+    setDraft(String(initialValue));
+  }, [initialValue]);
+
+  const commit = () => {
+    const v = parseFloat(draft);
+    if (!Number.isNaN(v) && v >= 0) {
+      onCommit(v);
+      setDraft(String(v));
+      return;
+    }
+    // Empty / NaN / negative: revert to last good value.
+    setDraft(String(initialValue));
+  };
+
+  return (
+    <input
+      type="number"
+      min="0"
+      step="0.01"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      style={chipQtyInputStyle}
+    />
+  );
+}
+
 interface StepCardProps {
   step: PreparationStep;
   totalSteps: number;
@@ -747,16 +800,9 @@ function StepCard({
                 </>
               ) : (
                 <>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.quantity}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      if (!Number.isNaN(v)) onUpdateItemQuantity(itemIdx, v);
-                    }}
-                    style={chipQtyInputStyle}
+                  <ItemQtyInput
+                    initialValue={item.quantity}
+                    onCommit={(v) => onUpdateItemQuantity(itemIdx, v)}
                   />
                   <span style={{ fontWeight: 700 }}>{unitLabel}</span>
                   <span style={{ opacity: 0.7 }}>·</span>
