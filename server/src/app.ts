@@ -19,6 +19,11 @@ const app = express();
 // accessing the dev server from a phone on the LAN — the origin will
 // be the laptop's LAN IP (e.g. http://192.168.1.10:5173), not
 // localhost:5173, so a single-origin env value locks out the phone.
+//
+// `allowedHeaders` and `exposedHeaders` are explicit. The default cors
+// behavior already echoes requested headers, but listing
+// 'x-app-token' explicitly avoids subtle cases where the preflight
+// rejects a custom Authorization-style header from the browser.
 const allowedOrigins = (process.env.CORS_ORIGIN ?? '*')
   .split(',')
   .map((s) => s.trim())
@@ -28,6 +33,8 @@ app.use(
     origin: allowedOrigins.length === 1 && allowedOrigins[0] === '*'
       ? '*'
       : allowedOrigins,
+    allowedHeaders: ['Content-Type', 'x-app-token'],
+    exposedHeaders: ['x-app-token'],
   }),
 );
 app.use(express.json());
