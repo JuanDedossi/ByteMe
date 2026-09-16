@@ -239,58 +239,6 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // ---- Empty state ----
-
-  if (!preparation || preparation.steps.length === 0) {
-    return (
-      <div
-        style={{
-          padding: 'var(--space-lg)',
-          textAlign: 'center',
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
-        <MdPlayCircleOutline
-          size={42}
-          color="var(--color-primary)"
-          style={{ marginBottom: 'var(--space-sm)' }}
-        />
-        <p
-          style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: '0.9rem',
-            color: 'var(--color-text-secondary)',
-            margin: '0 0 var(--space-md)',
-          }}
-        >
-          Esta receta todavía no tiene preparación.
-        </p>
-        <button
-          onClick={enterEdit}
-          style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            background: 'var(--color-primary)',
-            color: 'var(--color-on-primary)',
-            border: 'none',
-            borderRadius: 'var(--radius-full)',
-            padding: 'var(--space-sm) var(--space-lg)',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          <MdAdd size={16} />
-          Agregar preparación
-        </button>
-      </div>
-    );
-  }
-
   // ---- Edit mode ----
   // NOTE: edit mode must take precedence over the empty state below — when
   // the user taps "Agregar preparación" from the empty state, `preparation`
@@ -446,6 +394,58 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
             remainingFor={remainingFor}
           />
         )}
+      </div>
+    );
+  }
+
+  // ---- Empty state ----
+
+  if (!preparation || preparation.steps.length === 0) {
+    return (
+      <div
+        style={{
+          padding: 'var(--space-lg)',
+          textAlign: 'center',
+          background: 'var(--color-surface)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        <MdPlayCircleOutline
+          size={42}
+          color="var(--color-primary)"
+          style={{ marginBottom: 'var(--space-sm)' }}
+        />
+        <p
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.9rem',
+            color: 'var(--color-text-secondary)',
+            margin: '0 0 var(--space-md)',
+          }}
+        >
+          Esta receta todavía no tiene preparación.
+        </p>
+        <button
+          onClick={enterEdit}
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            background: 'var(--color-primary)',
+            color: 'var(--color-on-primary)',
+            border: 'none',
+            borderRadius: 'var(--radius-full)',
+            padding: 'var(--space-sm) var(--space-lg)',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          <MdAdd size={16} />
+          Agregar preparación
+        </button>
       </div>
     );
   }
