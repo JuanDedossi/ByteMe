@@ -635,9 +635,45 @@ export async function updatePreparation(
     ...(dto.videoUrl !== undefined ? { videoUrl: dto.videoUrl } : {}),
   };
 
+  // Aggregate per-ingredient totals from the saved steps. The recipe's
+  // own ingredient quantities flow from these totals so the recipe
+  // reflects how it is actually used in the prep (e.g. flour used in
+  // step 1 + step 5 sums to the recipe's total flour). Ingredients not
+  // referenced in any step keep their existing quantity.
+  const totalsByRefId = new Map<string, number>();
+  for (const step of dto.steps ?? []) {
+    for (const item of step.ingredientItems ?? []) {
+      totalsByRefId.set(
+        item.ingredientId,
+        (totalsByRefId.get(item.ingredientId) ?? 0) + item.quantity,
+      );
+    }
+  }
+
+  const newIngredients = (recipe.ingredients ?? []).map((ing) => {
+    const sub = ing as any;
+    const refId =
+      sub.type === 'subRecipe'
+        ? sub.recipeId?.toString()
+        : sub.ingredientId?.toString();
+    if (!refId) return ing;
+    const total = totalsByRefId.get(refId);
+    if (total === undefined) return ing;
+    return { ...sub, quantity: total };
+  });
+
   const updated = await Recipe.findByIdAndUpdate(
     id,
-    { $set: { preparation: nextPreparation } },
+    {
+      $set: {
+        preparation: nextPreparation,
+        ingredients: newIngredients,
+        // Underlying cost changed; reset any customSellingPrice so the
+        // auto-computed selling price wins (mirrors updateRecipe's
+        // behavior when ingredients change).
+        customSellingPrice: null,
+      },
+    },
     { new: true },
   ).exec();
   if (!updated) throw { status: 404, message: 'Receta no encontrada' };
