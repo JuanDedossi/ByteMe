@@ -6,7 +6,7 @@ import {
   MdClose,
   MdDelete,
   MdEdit,
-  MdOpenInNew,
+  MdPlayCircle,
   MdPlayCircleOutline,
 } from 'react-icons/md';
 import { recipesService } from '../../services/recipes.service';
@@ -582,10 +582,38 @@ export function PreparationTab({ recipe, onUpdated }: PreparationTabProps) {
         {prep.videoUrl && prep.videoUrl.trim() !== '' && (
           <button
             onClick={() => openVideo(prep.videoUrl!)}
-            style={primaryBtnStyle}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 'var(--space-sm)',
+              background: 'var(--color-primary)',
+              color: 'var(--color-on-primary)',
+              border: 'none',
+              borderRadius: 'var(--radius-full)',
+              padding: '6px 14px 6px 8px',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-body)',
+              boxShadow: '0 2px 8px rgba(188, 108, 37, 0.25)',
+            }}
+            title="Ver video tutorial"
+            aria-label="Ver video tutorial de la preparación"
           >
-            <MdOpenInNew size={14} />
-            Ver preparación
+            <MdPlayCircle size={28} />
+            <span
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                textAlign: 'left',
+                lineHeight: 1.1,
+              }}
+            >
+              <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>
+                Ver preparación
+              </span>
+              <span style={{ fontSize: '0.65rem', opacity: 0.85 }}>
+                Tutorial en video
+              </span>
+            </span>
           </button>
         )}
         <button
