@@ -824,9 +824,10 @@ function ChipPicker({
         inset: 0,
         background: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         justifyContent: 'center',
         zIndex: 200,
+        padding: 'var(--space-md)',
       }}
     >
       <div
@@ -835,14 +836,11 @@ function ChipPicker({
           background: 'var(--color-surface)',
           width: '100%',
           maxWidth: 480,
-          borderTopLeftRadius: 'var(--radius-lg)',
-          borderTopRightRadius: 'var(--radius-lg)',
+          borderRadius: 'var(--radius-lg)',
           padding: 'var(--space-lg)',
-          paddingBottom:
-            'calc(var(--space-lg) + env(safe-area-inset-bottom))',
           maxHeight: '70vh',
           overflowY: 'auto',
-          boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.15)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
         }}
       >
         <div
