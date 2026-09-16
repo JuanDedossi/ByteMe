@@ -691,6 +691,9 @@ export async function updatePreparation(
 
     if (total > ing.quantity) {
       // Over-allocation: grow the recipe to match (silent update).
+      console.log(
+        `[updatePreparation] growing ${nameByRef.get(refId)}: ${ing.quantity} -> ${total}`,
+      );
       return { ...sub, quantity: total };
     }
 
@@ -740,6 +743,10 @@ export async function updatePreparation(
     },
     { new: true },
   ).exec();
+  console.log(
+    `[updatePreparation] saved ingredients for ${id}:`,
+    JSON.stringify(newIngredients),
+  );
   if (!updated) throw { status: 404, message: 'Receta no encontrada' };
   return {
     recipe: await enrichRecipe(updated as RecipeDocument),
