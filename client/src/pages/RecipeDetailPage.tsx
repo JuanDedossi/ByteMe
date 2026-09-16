@@ -21,7 +21,11 @@ const TAB_LABELS: Record<TabKey, string> = {
 const VALID_TABS: ReadonlySet<TabKey> = new Set(TAB_ORDER);
 
 function parseTabParam(raw: string | null): TabKey {
-  return raw && VALID_TABS.has(raw as TabKey) ? (raw as TabKey) : 'preparacion';
+  // Default to 'ingredientes' so opening a recipe from the list (card
+  // click) lands on the overview tab. The Preparacion button on
+  // RecipeCard passes ?tab=preparacion explicitly to land on the prep
+  // tab, which is the deliberate entry point.
+  return raw && VALID_TABS.has(raw as TabKey) ? (raw as TabKey) : 'ingredientes';
 }
 
 /**
