@@ -13,6 +13,17 @@ import { authMiddleware } from './middleware/auth.middleware';
 
 const app = express();
 
+// Temporary request logger: prints method, path, and origin to stdout.
+// Used to diagnose LAN dev testing from a phone (e.g. to tell whether a
+// request actually reached the server vs got stuck at Vite proxy or
+// in the phone browser). Strip once the issue is identified.
+app.use((req, _res, next) => {
+  console.log(
+    `[req] ${req.method} ${req.originalUrl} origin=${req.headers.origin ?? '-'}`,
+  );
+  next();
+});
+
 // CORS: parse comma-separated list of allowed origins from env, or fall
 // back to '*' for dev convenience. Single origin like 'http://x.com' is
 // also accepted (split yields a 1-element array). This matters when
