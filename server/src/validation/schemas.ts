@@ -87,7 +87,7 @@ export const UpdateRecipeSchema = z
 export type UpdateRecipeInput = z.infer<typeof UpdateRecipeSchema>;
 
 export const UpdateStockSchema = z.object({
-  stock: z.number().int().min(0),
+  stock: z.number().min(0),
 });
 
 export type UpdateStockInput = z.infer<typeof UpdateStockSchema>;
@@ -115,12 +115,7 @@ export const UpdatePreparationSchema = z.object({
       }),
     )
     .optional(),
-  videoUrl: z
-    .string()
-    .trim()
-    .min(1)
-    .max(2048)
-    .optional(),
+  videoUrl: z.string().trim().min(1).max(2048).optional(),
 });
 
 export type UpdatePreparationInput = z.infer<typeof UpdatePreparationSchema>;
@@ -209,7 +204,7 @@ export const CreateSaleSchema = z.object({
 export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;
 
 export const UpdateLineQuantitySchema = z.object({
-  quantity: z.number().int().min(0),
+  quantity: z.number().min(0),
 });
 
 export type UpdateLineQuantityInput = z.infer<typeof UpdateLineQuantitySchema>;
