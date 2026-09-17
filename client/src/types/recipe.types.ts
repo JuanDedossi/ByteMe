@@ -18,12 +18,15 @@ export interface RecipeComplement {
 export interface PreparationStep {
   order: number;
   text: string;
-  ingredientRefs: string[];
+  ingredientItems: { ingredientId: string; quantity: number }[];
 }
+
+export type VideoPlatform = 'instagram' | 'tiktok' | 'youtube' | 'other';
 
 export interface Preparation {
   steps: PreparationStep[];
   videoUrl?: string;
+  videoPlatform?: VideoPlatform;
 }
 
 export interface Recipe {

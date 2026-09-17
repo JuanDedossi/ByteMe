@@ -5,137 +5,185 @@ interface IngredientesTabProps {
 }
 
 /**
- * Read-only view of recipe ingredients + complements. Extracted from the
- * old `RecipeCard` expand section. The detail page owns the data; this
- * component just renders.
+ * Read-only view of recipe ingredients + complements. Rendered as a
+ * vertical list of card-like rows so the quantity pill on the right
+ * reads as a discrete unit the user can scan quickly when cooking.
+ * Quantity is rendered as a primary-tinted pill (the visual anchor);
+ * the ingredient name is the secondary content. Sub-recipes get a
+ * small "Sub-receta" badge next to the name.
  */
 export function IngredientesTab({ recipe }: IngredientesTabProps) {
   return (
     <div>
-      <p
-        style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: '0.7rem',
-          fontWeight: 600,
-          color: 'var(--color-text-secondary)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          margin: '0 0 var(--space-sm)',
-        }}
-      >
-        Ingredientes
-      </p>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            {['Ingrediente', 'Cantidad'].map((h) => (
-              <th
-                key={h}
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.7rem',
-                  color: 'var(--color-text-secondary)',
-                  textAlign: 'left',
-                  paddingBottom: 'var(--space-xs)',
-                  fontWeight: 600,
-                }}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
+      <SectionHeader>Ingredientes</SectionHeader>
+      {recipe.ingredients.length === 0 ? (
+        <EmptyMessage>Esta receta no tiene ingredientes cargados.</EmptyMessage>
+      ) : (
+        <ul style={listStyle}>
           {recipe.ingredients.map((ing) => (
-            <tr key={ing.ingredientId}>
-              <td style={tdStyle}>
-                {ing.isSubRecipe && (
-                  <span
-                    style={{
-                      fontSize: '0.6rem',
-                      fontWeight: 700,
-                      color: 'var(--color-primary)',
-                      marginRight: '4px',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    SR
-                  </span>
-                )}
+            <li key={ing.ingredientId} style={rowStyle}>
+              <span style={nameStyle}>
+                {ing.isSubRecipe && <SubRecipeBadge />}
                 {ing.ingredientName}
-              </td>
-              <td style={tdStyle}>
-                {ing.quantity}
-                {ing.ingredientUnit === 'unidad' ? ' u.' : 'g'}
-              </td>
-            </tr>
+              </span>
+              <QuantityPill quantity={ing.quantity} unit={unitLabel(ing.ingredientUnit)} />
+            </li>
           ))}
-        </tbody>
-      </table>
+        </ul>
+      )}
 
       {recipe.complements && recipe.complements.length > 0 && (
         <>
-          <p
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              color: 'var(--color-text-secondary)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              margin: 'var(--space-md) 0 var(--space-sm)',
-            }}
-          >
-            Complementos
-          </p>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {['Complemento', 'Cantidad'].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.7rem',
-                      color: 'var(--color-text-secondary)',
-                      textAlign: 'left',
-                      paddingBottom: 'var(--space-xs)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {recipe.complements.map((c) => (
-                <tr key={c.complementId}>
-                  <td style={tdStyle}>
-                    {c.complementName}
-                    {c.complementUnit ? ` (${c.complementUnit})` : ''}
-                  </td>
-                  <td style={tdStyle}>
-                    {c.quantity}
-                    {c.complementUnit === 'metro'
-                      ? ' m'
-                      : c.complementUnit === 'unidad'
-                        ? ' u.'
-                        : ''}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <SectionHeader>Complementos</SectionHeader>
+          <ul style={listStyle}>
+            {recipe.complements.map((c) => (
+              <li key={c.complementId} style={rowStyle}>
+                <span style={nameStyle}>
+                  {c.complementName}
+                  {c.complementUnit ? ` (${c.complementUnit})` : ''}
+                </span>
+                <QuantityPill
+                  quantity={c.quantity}
+                  unit={complementUnitLabel(c.complementUnit)}
+                />
+              </li>
+            ))}
+          </ul>
         </>
       )}
     </div>
   );
 }
 
-const tdStyle: React.CSSProperties = {
+function unitLabel(unit?: string): string {
+  if (unit === 'unidad') return 'u.';
+  if (unit === 'kg') return 'g';
+  return 'g';
+}
+
+function complementUnitLabel(unit?: string): string {
+  if (unit === 'metro') return 'm';
+  if (unit === 'unidad') return 'u.';
+  return '';
+}
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      style={{
+        fontFamily: 'var(--font-body)',
+        fontSize: '0.7rem',
+        fontWeight: 600,
+        color: 'var(--color-text-secondary)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        margin: '0 0 var(--space-sm)',
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
+function EmptyMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      style={{
+        fontFamily: 'var(--font-body)',
+        fontSize: '0.85rem',
+        color: 'var(--color-text-secondary)',
+        textAlign: 'center',
+        padding: 'var(--space-lg)',
+        background: 'var(--color-background)',
+        borderRadius: 'var(--radius-md)',
+        margin: 0,
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
+function SubRecipeBadge() {
+  return (
+    <span
+      style={{
+        fontFamily: 'var(--font-body)',
+        fontSize: '0.6rem',
+        fontWeight: 700,
+        color: 'var(--color-primary)',
+        background: 'rgba(188, 108, 37, 0.14)',
+        padding: '2px 8px',
+        borderRadius: 'var(--radius-full)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      Sub-receta
+    </span>
+  );
+}
+
+function QuantityPill({
+  quantity,
+  unit,
+}: {
+  quantity: number;
+  unit: string;
+}) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        gap: '2px',
+        background: 'var(--color-primary)',
+        color: 'var(--color-on-primary)',
+        padding: '4px 12px',
+        borderRadius: 'var(--radius-full)',
+        fontFamily: 'var(--font-body)',
+        fontSize: '0.85rem',
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+        boxShadow: '0 1px 3px rgba(188, 108, 37, 0.2)',
+      }}
+    >
+      <span style={{ fontSize: '0.95rem' }}>{quantity}</span>
+      <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>{unit}</span>
+    </span>
+  );
+}
+
+const listStyle: React.CSSProperties = {
+  listStyle: 'none',
+  padding: 0,
+  margin: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--space-xs)',
+};
+
+const rowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'var(--space-sm)',
+  padding: 'var(--space-sm) var(--space-md)',
+  background: 'var(--color-background)',
+  borderRadius: 'var(--radius-md)',
   fontFamily: 'var(--font-body)',
-  fontSize: '0.8rem',
+  fontSize: '0.9rem',
   color: 'var(--color-text-primary)',
-  padding: '2px 0',
+  border: '1px solid rgba(218, 193, 184, 0.25)',
+  transition: 'background 0.15s',
+};
+
+const nameStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-sm)',
+  flex: 1,
+  minWidth: 0,
 };

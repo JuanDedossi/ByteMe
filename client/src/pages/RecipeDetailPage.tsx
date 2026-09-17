@@ -3,24 +3,16 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { MdArrowBack } from 'react-icons/md';
 import { recipesService } from '../services/recipes.service';
 import type { Recipe } from '../types/recipe.types';
-import { IngredientesTab } from '../components/recipes/IngredientesTab';
-import { CostosTab } from '../components/recipes/CostosTab';
 import { PreparationTab } from '../components/recipes/PreparationTab';
 
-type TabKey = 'ingredientes' | 'preparacion' | 'costos';
-
-const TAB_ORDER: TabKey[] = ['ingredientes', 'preparacion', 'costos'];
-const TAB_LABELS: Record<TabKey, string> = {
-  ingredientes: 'Ingredientes',
-  preparacion: 'Preparación',
-  costos: 'Costos',
-};
-
 /**
- * Recipe detail page introduced by the recipe-preparation feature.
- * Replaces the legacy expand-on-card UX with a dedicated screen hosting
- * three tabs (Ingredientes / Preparación / Costos). Mobile-first with
- * safe-area padding for the BottomNav.
+ * Recipe detail page — single-purpose view: the preparation.
+ *
+ * The reference data (ingredients, complements, costs) lives in the
+ * RecipeCard expand on the list page (restored in commit 02ae2a5), so
+ * the detail page is a focused action surface for cooking: header +
+ * back button, then the prep steps + video link. No tab system
+ * needed with only one viewable surface.
  */
 export function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,7 +20,6 @@ export function RecipeDetailPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>('preparacion');
 
   useEffect(() => {
     if (!id) return;
@@ -101,49 +92,6 @@ export function RecipeDetailPage() {
         </h1>
       </div>
 
-      {/* Segmented tab control */}
-      <div
-        role="tablist"
-        aria-label="Secciones de la receta"
-        style={{
-          display: 'flex',
-          gap: 'var(--space-xs)',
-          padding: 'var(--space-md) var(--space-lg)',
-          background: 'var(--color-surface)',
-          borderBottom: '1px solid rgba(218, 193, 184, 0.3)',
-        }}
-      >
-        {TAB_ORDER.map((key) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={activeTab === key}
-            onClick={() => setActiveTab(key)}
-            style={{
-              flex: 1,
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.8rem',
-              fontWeight: activeTab === key ? 700 : 500,
-              background:
-                activeTab === key
-                  ? 'var(--color-primary)'
-                  : 'transparent',
-              color:
-                activeTab === key
-                  ? 'var(--color-on-primary)'
-                  : 'var(--color-text-secondary)',
-              border: 'none',
-              borderRadius: 'var(--radius-full)',
-              padding: 'var(--space-xs) var(--space-sm)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            {TAB_LABELS[key]}
-          </button>
-        ))}
-      </div>
-
       <div style={{ padding: 'var(--space-lg)' }}>
         {error && (
           <p
@@ -170,13 +118,7 @@ export function RecipeDetailPage() {
           </p>
         )}
         {recipe && !error && (
-          <div role="tabpanel">
-            {activeTab === 'ingredientes' && <IngredientesTab recipe={recipe} />}
-            {activeTab === 'preparacion' && (
-              <PreparationTab recipe={recipe} onUpdated={handleUpdated} />
-            )}
-            {activeTab === 'costos' && <CostosTab recipe={recipe} />}
-          </div>
+          <PreparationTab recipe={recipe} onUpdated={handleUpdated} />
         )}
       </div>
     </div>

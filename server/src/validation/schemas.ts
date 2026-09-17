@@ -104,7 +104,14 @@ export const UpdatePreparationSchema = z.object({
       z.object({
         order: z.number().int().positive(),
         text: z.string().trim().min(1),
-        ingredientRefs: z.array(z.string()).optional(),
+        ingredientItems: z
+          .array(
+            z.object({
+              ingredientId: z.string().min(1),
+              quantity: z.number().nonnegative(),
+            }),
+          )
+          .optional(),
       }),
     )
     .optional(),

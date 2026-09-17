@@ -53,9 +53,14 @@ export const recipesService = {
   async updatePreparation(
     id: string,
     payload: UpdatePreparationPayload,
-  ): Promise<Recipe> {
+  ): Promise<{ recipe: Recipe; warnings: string[] }> {
     const { data } = await api.patch(`/recipes/${id}/preparation`, payload);
-    return data.data;
+    // Server now returns { recipe, warnings }. Older deployments may still
+    // return the bare recipe; normalize by checking shape.
+    if (data.data && typeof data.data === 'object' && 'recipe' in data.data) {
+      return data.data as { recipe: Recipe; warnings: string[] };
+    }
+    return { recipe: data.data as Recipe, warnings: [] };
   },
 
   async delete(id: string): Promise<void> {
