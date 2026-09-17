@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   MdEdit,
   MdDelete,
@@ -7,6 +8,7 @@ import {
   MdCheck,
   MdClose,
   MdAttachMoney,
+  MdMenuBook,
 } from 'react-icons/md';
 import type { Recipe } from '../../types/recipe.types';
 import type { ProfitRule } from '../../types/profit-rule.types';
@@ -15,16 +17,31 @@ interface RecipeCardProps {
   recipe: Recipe;
   profitRules: ProfitRule[];
   onEditRequest: (recipe: Recipe) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
   onUpdatePrice: (id: string, price: number | null) => Promise<void>;
 }
 
+/**
+ * Recipe summary card used in the Recipes list.
+ *
+ * Tap the chevron in the actions row to expand an inline breakdown
+ * panel with ingredients, complements, and cost detail. Tap the
+ * explicit Preparacion button to enter the focused prep view for
+ * cooking. Edit / Delete / price-edit live in the same actions row
+ * with stopPropagation so they do not toggle expand.
+ *
+ * Restored from the pre-SDD-cycle pattern (commit 0d081f9 parent) at
+ * the operator's request — they were accustomed to the arrow + inline
+ * breakdown and the simpler card surface. The Preparacion button from
+ * the first cycle commit is kept.
+ */
 export function RecipeCard({
   recipe,
   onEditRequest,
   onDelete,
   onUpdatePrice,
 }: RecipeCardProps) {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [editingPrice, setEditingPrice] = useState(false);
   const [editPrice, setEditPrice] = useState('');
@@ -33,7 +50,28 @@ export function RecipeCard({
   const fmt = (v: number) =>
     `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const handlePriceEdit = () => {
+  const handleToggleExpand = () => setExpanded((v) => !v);
+
+  const handleOpenPreparation = (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    navigate(`/recetas/${recipe._id}`);
+  };
+
+  const hasPreparation =
+    !!recipe.preparation && recipe.preparation.steps.length > 0;
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEditRequest(recipe);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(recipe._id);
+  };
+
+  const handlePriceEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditPrice(recipe.sellingPrice.toFixed(2));
     setEditingPrice(true);
   };
@@ -50,7 +88,8 @@ export function RecipeCard({
     }
   };
 
-  const handlePriceReset = async () => {
+  const handlePriceReset = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setLoading(true);
     try {
       await onUpdatePrice(recipe._id, null);
@@ -60,7 +99,8 @@ export function RecipeCard({
     }
   };
 
-  const handlePriceCancel = () => {
+  const handlePriceCancel = (e?: React.SyntheticEvent) => {
+    e?.stopPropagation();
     setEditingPrice(false);
   };
 
@@ -252,21 +292,33 @@ export function RecipeCard({
         <div
           style={{
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            marginTop: 'var(--space-xs)',
+            marginTop: 'var(--space-sm)',
           }}
         >
+          <button
+            onClick={handleOpenPreparation}
+            style={prepBtnStyle}
+            title={
+              hasPreparation
+                ? 'Ver preparación'
+                : 'Agregar pasos de preparación'
+            }
+          >
+            <MdMenuBook size={14} />
+            {hasPreparation ? 'Preparación' : '+ Preparación'}
+          </button>
           <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
             <button
-              onClick={() => onEditRequest(recipe)}
+              onClick={handleEditClick}
               style={iconBtnStyle}
               title="Editar"
             >
               <MdEdit size={18} />
             </button>
             <button
-              onClick={() => setExpanded((v) => !v)}
+              onClick={handleToggleExpand}
               style={iconBtnStyle}
               title="Ver detalle"
             >
@@ -277,7 +329,7 @@ export function RecipeCard({
               )}
             </button>
             <button
-              onClick={() => onDelete(recipe._id)}
+              onClick={handleDeleteClick}
               style={{ ...iconBtnStyle, color: 'var(--color-error)' }}
               title="Eliminar"
             >
@@ -398,7 +450,6 @@ export function RecipeCard({
                   {recipe.complements.map((c) => (
                     <tr key={c.complementId}>
                       <td style={tdStyle}>
-                        {/* P4 disambiguation: name (unit) */}
                         {c.complementName}
                         {c.complementUnit ? ` (${c.complementUnit})` : ''}
                       </td>
@@ -546,6 +597,21 @@ const iconBtnStyle: React.CSSProperties = {
   borderRadius: 'var(--radius-sm)',
   display: 'flex',
   alignItems: 'center',
+};
+
+const prepBtnStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  background: 'rgba(188, 108, 37, 0.12)',
+  color: 'var(--color-primary)',
+  border: 'none',
+  borderRadius: 'var(--radius-full)',
+  padding: '6px 12px',
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px',
 };
 
 const tdStyle: React.CSSProperties = {

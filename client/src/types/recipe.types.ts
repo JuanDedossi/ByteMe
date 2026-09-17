@@ -15,6 +15,20 @@ export interface RecipeComplement {
   cost?: number;
 }
 
+export interface PreparationStep {
+  order: number;
+  text: string;
+  ingredientItems: { ingredientId: string; quantity: number }[];
+}
+
+export type VideoPlatform = 'instagram' | 'tiktok' | 'youtube' | 'other';
+
+export interface Preparation {
+  steps: PreparationStep[];
+  videoUrl?: string;
+  videoPlatform?: VideoPlatform;
+}
+
 export interface Recipe {
   _id: string;
   name: string;
@@ -38,6 +52,7 @@ export interface Recipe {
   isSubRecipe: boolean;
   createdAt: string;
   updatedAt: string;
+  preparation?: Preparation;
 }
 
 export interface CreateRecipePayload {
@@ -63,3 +78,5 @@ export interface UpdateRecipePayload {
   yieldUnits?: number;
   isSubRecipe?: boolean;
 }
+
+export type UpdatePreparationPayload = Partial<Preparation>;

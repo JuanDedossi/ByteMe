@@ -6,6 +6,7 @@ import { traysService } from '../../services/trays.service';
 import type { Recipe } from '../../types/recipe.types';
 import type { Tray } from '../../types/tray.types';
 import type { CreateSalePayload } from '../../types/sale.types';
+import { formatQuantityLabel } from '../../utils/sale-quantity';
 
 interface SellableItem {
   id: string;
@@ -55,7 +56,13 @@ function buildSellableItems(recipes: Recipe[], trays: Tray[]): SellableItem[] {
   return [...recipeItems, ...trayItems];
 }
 
-export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelectedType }: SaleModalProps) {
+export function SaleModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  preSelectedId,
+  preSelectedType,
+}: SaleModalProps) {
   const [sellableItems, setSellableItems] = useState<SellableItem[]>([]);
   const [items, setItems] = useState<SaleItemState[]>([]);
   const [loading, setLoading] = useState(false);
@@ -89,7 +96,9 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
             itemType: item.type,
             quantity: item.sellUnit === 'kg' ? 0 : 1,
             weightInput: '',
-            selected: item.id === preSelectedId && (preSelectedType ? item.type === preSelectedType : true),
+            selected:
+              item.id === preSelectedId &&
+              (preSelectedType ? item.type === preSelectedType : true),
           })),
         );
       } finally {
@@ -108,7 +117,9 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
 
   const toggleSelect = (id: string) => {
     setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, selected: !item.selected } : item)),
+      prev.map((item) =>
+        item.id === id ? { ...item, selected: !item.selected } : item,
+      ),
     );
   };
 
@@ -118,9 +129,22 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
         if (item.id !== id) return item;
         const sellable = getItem(id);
         const max = sellable?.stock ?? 1;
-        const next = Math.max(1, Math.min(max, item.quantity + delta));
+        // Floor is 0.5 for sellUnit='unidad' items (half-unit sales allowed);
+        // kg items keep their own weight-input path and never hit this branch.
+        const floor = 0.5;
+        const next = Math.max(floor, Math.min(max, item.quantity + delta));
         return { ...item, quantity: next };
       }),
+    );
+  };
+
+  const toggleHalf = (id: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, quantity: item.quantity === 0.5 ? 1 : 0.5 }
+          : item,
+      ),
     );
   };
 
@@ -156,6 +180,20 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
   const handleSubmit = async () => {
     if (!isValid) return;
     setError('');
+    // Defense-in-depth: reject any sellUnit='unidad' line with quantity < 0.5
+    // (the toggle button's disabled state already prevents this in the UI).
+    const invalidHalfLine = items.find(
+      (item) =>
+        item.selected &&
+        item.quantity > 0 &&
+        item.quantity < 0.5 &&
+        (sellableItems.find((s) => s.id === item.id)?.sellUnit ?? 'unidad') ===
+          'unidad',
+    );
+    if (invalidHalfLine) {
+      setError('La cantidad mínima por unidad es ½.');
+      return;
+    }
     setLoading(true);
     try {
       const payload: CreateSalePayload = {
@@ -170,9 +208,7 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
       onClose();
     } catch (e: unknown) {
       const msg =
-        e instanceof Error
-          ? e.message
-          : 'Error al registrar la venta.';
+        e instanceof Error ? e.message : 'Error al registrar la venta.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -181,18 +217,46 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Registrar Venta">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-md)',
+        }}
+      >
         {fetching ? (
-          <p style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-secondary)', textAlign: 'center', padding: 'var(--space-lg) 0' }}>
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              color: 'var(--color-text-secondary)',
+              textAlign: 'center',
+              padding: 'var(--space-lg) 0',
+            }}
+          >
             Cargando productos...
           </p>
         ) : sellableItems.length === 0 ? (
-          <p style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-secondary)', textAlign: 'center', padding: 'var(--space-lg) 0' }}>
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              color: 'var(--color-text-secondary)',
+              textAlign: 'center',
+              padding: 'var(--space-lg) 0',
+            }}
+          >
             No hay productos con stock disponible.
           </p>
         ) : (
           <>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', maxHeight: '50vh', overflowY: 'auto' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-sm)',
+                maxHeight: '50vh',
+                overflowY: 'auto',
+              }}
+            >
               {items.map((item) => {
                 const sellable = getItem(item.id);
                 if (!sellable) return null;
@@ -205,7 +269,9 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
                       gap: 'var(--space-sm)',
                       padding: 'var(--space-sm) var(--space-md)',
                       borderRadius: 'var(--radius-sm)',
-                      background: item.selected ? 'var(--color-surface-container-low)' : 'transparent',
+                      background: item.selected
+                        ? 'var(--color-surface-container-low)'
+                        : 'transparent',
                       border: `1.5px solid ${item.selected ? 'rgba(188, 108, 37, 0.3)' : 'rgba(218, 193, 184, 0.25)'}`,
                       cursor: 'pointer',
                     }}
@@ -218,7 +284,9 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
                         height: 18,
                         borderRadius: 4,
                         border: `2px solid ${item.selected ? 'var(--color-primary)' : 'rgba(218, 193, 184, 0.6)'}`,
-                        background: item.selected ? 'var(--color-primary)' : 'transparent',
+                        background: item.selected
+                          ? 'var(--color-primary)'
+                          : 'transparent',
                         flexShrink: 0,
                         display: 'flex',
                         alignItems: 'center',
@@ -226,40 +294,96 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
                       }}
                     >
                       {item.selected && (
-                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                          <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <svg
+                          width="10"
+                          height="8"
+                          viewBox="0 0 10 8"
+                          fill="none"
+                        >
+                          <path
+                            d="M1 4L3.5 6.5L9 1"
+                            stroke="white"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
                         </svg>
                       )}
                     </div>
 
                     {/* Item info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
-                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600, margin: 0, color: 'var(--color-text-primary)' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--space-xs)',
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            margin: 0,
+                            color: 'var(--color-text-primary)',
+                          }}
+                        >
                           {sellable.name}
                         </p>
                         {sellable.type === 'tray' && (
-                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.6rem', color: 'var(--color-text-secondary)', background: 'rgba(218, 193, 184, 0.2)', padding: '1px 5px', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}>
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              fontSize: '0.6rem',
+                              color: 'var(--color-text-secondary)',
+                              background: 'rgba(218, 193, 184, 0.2)',
+                              padding: '1px 5px',
+                              borderRadius: 'var(--radius-sm)',
+                              flexShrink: 0,
+                            }}
+                          >
                             Bandeja
                           </span>
                         )}
                       </div>
-                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
-                        {sellable.sellUnit === 'kg' ? `${fmt(sellable.pricePerKg)}/kg` : fmt(sellable.price)} · stock: {sellable.sellUnit === 'kg' ? (sellable.stock >= 1000 ? `${(sellable.stock / 1000).toFixed(1)}kg` : `${sellable.stock}g`) : sellable.stock}
+                      <p
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontSize: '0.75rem',
+                          color: 'var(--color-text-secondary)',
+                          margin: '2px 0 0',
+                        }}
+                      >
+                        {sellable.sellUnit === 'kg'
+                          ? `${fmt(sellable.pricePerKg)}/kg`
+                          : fmt(sellable.price)}{' '}
+                        · stock:{' '}
+                        {sellable.sellUnit === 'kg'
+                          ? sellable.stock >= 1000
+                            ? `${(sellable.stock / 1000).toFixed(1)}kg`
+                            : `${sellable.stock}g`
+                          : sellable.stock}
                       </p>
                     </div>
 
                     {/* Quantity stepper or weight input (only when selected) */}
-                    {item.selected && (
-                      sellable.sellUnit === 'kg' ? (
+                    {item.selected &&
+                      (sellable.sellUnit === 'kg' ? (
                         <div
-                          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--space-xs)',
+                          }}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <input
                             type="number"
                             value={item.weightInput}
-                            onChange={(e) => changeWeight(item.id, e.target.value)}
+                            onChange={(e) =>
+                              changeWeight(item.id, e.target.value)
+                            }
                             placeholder="g"
                             min="0"
                             max={sellable.stock}
@@ -276,21 +400,42 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
                               outline: 'none',
                             }}
                           />
-                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>g</span>
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              fontSize: '0.75rem',
+                              color: 'var(--color-text-secondary)',
+                            }}
+                          >
+                            g
+                          </span>
                         </div>
                       ) : (
                         <div
-                          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--space-xs)',
+                          }}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
                             onClick={() => changeQuantity(item.id, -1)}
-                            disabled={item.quantity <= 1}
+                            disabled={item.quantity <= 0.5}
                             style={stepperBtn}
                           >
                             <MdRemove size={14} />
                           </button>
-                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600, minWidth: 20, textAlign: 'center', color: 'var(--color-text-primary)' }}>
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              fontSize: '0.9rem',
+                              fontWeight: 600,
+                              minWidth: 20,
+                              textAlign: 'center',
+                              color: 'var(--color-text-primary)',
+                            }}
+                          >
                             {item.quantity}
                           </span>
                           <button
@@ -300,14 +445,35 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
                           >
                             <MdAdd size={14} />
                           </button>
+                          <button
+                            onClick={() => toggleHalf(item.id)}
+                            disabled={sellable.stock < 0.5}
+                            aria-label={`Vender medio ${sellable.name}`}
+                            style={halfBtnStyle(item.quantity === 0.5)}
+                          >
+                            ½
+                          </button>
                         </div>
-                      )
-                    )}
+                      ))}
 
                     {/* Subtotal */}
                     {item.selected && item.quantity > 0 && (
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-primary)', minWidth: 70, textAlign: 'right', flexShrink: 0 }}>
-                        {fmt(sellable.sellUnit === 'kg' ? (item.quantity / 1000) * sellable.pricePerKg : sellable.price * item.quantity)}
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          color: 'var(--color-primary)',
+                          minWidth: 70,
+                          textAlign: 'right',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {fmt(
+                          sellable.sellUnit === 'kg'
+                            ? (item.quantity / 1000) * sellable.pricePerKg
+                            : sellable.price * item.quantity,
+                        )}
                       </span>
                     )}
                   </div>
@@ -317,25 +483,87 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
 
             {/* Summary */}
             {selectedItems.length > 0 && (
-              <div style={{ background: 'var(--color-surface-container-low)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div
+                style={{
+                  background: 'var(--color-surface-container-low)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: 'var(--space-md)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                }}
+              >
                 {selectedItems.map((item) => {
                   const sellable = getItem(item.id);
                   if (!sellable) return null;
                   return (
-                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                        {sellable.sellUnit === 'kg' ? `${item.quantity}g` : `${item.quantity}×`} {sellable.name}
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontSize: '0.8rem',
+                          color: 'var(--color-text-secondary)',
+                        }}
+                      >
+                        {sellable.sellUnit === 'kg'
+                          ? `${item.quantity}g`
+                          : `${formatQuantityLabel(item.quantity)}×`}{' '}
+                        {sellable.name}
                         {sellable.type === 'tray' ? ' (B)' : ''}
                       </span>
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-                        {fmt(sellable.sellUnit === 'kg' ? (item.quantity / 1000) * sellable.pricePerKg : sellable.price * item.quantity)}
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontSize: '0.8rem',
+                          color: 'var(--color-text-secondary)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {fmt(
+                          sellable.sellUnit === 'kg'
+                            ? (item.quantity / 1000) * sellable.pricePerKg
+                            : sellable.price * item.quantity,
+                        )}
                       </span>
                     </div>
                   );
                 })}
-                <div style={{ borderTop: '1px solid rgba(218, 193, 184, 0.3)', marginTop: 'var(--space-xs)', paddingTop: 'var(--space-xs)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Total</span>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: 700, color: 'var(--color-primary)' }}>{fmt(total)}</span>
+                <div
+                  style={{
+                    borderTop: '1px solid rgba(218, 193, 184, 0.3)',
+                    marginTop: 'var(--space-xs)',
+                    paddingTop: 'var(--space-xs)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      color: 'var(--color-text-primary)',
+                    }}
+                  >
+                    Total
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '1.2rem',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                    }}
+                  >
+                    {fmt(total)}
+                  </span>
                 </div>
               </div>
             )}
@@ -343,12 +571,25 @@ export function SaleModal({ isOpen, onClose, onSubmit, preSelectedId, preSelecte
         )}
 
         {error && (
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-error)', margin: 0 }}>
+          <p
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.85rem',
+              color: 'var(--color-error)',
+              margin: 0,
+            }}
+          >
             {error}
           </p>
         )}
 
-        <div style={{ display: 'flex', gap: 'var(--space-md)', paddingTop: 'var(--space-xs)' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 'var(--space-md)',
+            paddingTop: 'var(--space-xs)',
+          }}
+        >
           <button onClick={onClose} disabled={loading} style={cancelBtnStyle}>
             Cancelar
           </button>
@@ -378,6 +619,23 @@ const stepperBtn: React.CSSProperties = {
   color: 'var(--color-text-secondary)',
   padding: 0,
 };
+
+const halfBtnStyle = (active: boolean): React.CSSProperties => ({
+  width: 28,
+  height: 24,
+  borderRadius: 'var(--radius-sm)',
+  border: `1.5px solid ${active ? 'var(--color-primary)' : 'rgba(218, 193, 184, 0.4)'}`,
+  background: active ? 'var(--color-primary)' : 'none',
+  color: active ? '#fff' : 'var(--color-text-secondary)',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontFamily: 'var(--font-body)',
+  fontSize: '0.8rem',
+  fontWeight: 600,
+  padding: 0,
+});
 
 const cancelBtnStyle: React.CSSProperties = {
   flex: 1,

@@ -14,6 +14,7 @@ import {
 import { buildAccentInsensitiveRegex } from '../utils/normalize';
 import type { IngredientDocument } from '../models/ingredient.model';
 import type { ComplementDocument } from '../models/complement.model';
+import type { UpdatePreparationInput } from '../validation/schemas';
 
 export interface EnrichedRecipe {
   _id: Types.ObjectId;
@@ -55,6 +56,15 @@ export interface EnrichedRecipe {
   isSubRecipe: boolean;
   createdAt: Date;
   updatedAt: Date;
+  preparation?: {
+    steps: {
+      order: number;
+      text: string;
+      ingredientItems: { ingredientId: string; quantity: number }[];
+    }[];
+    videoUrl?: string;
+    videoPlatform?: 'instagram' | 'tiktok' | 'youtube' | 'other';
+  };
 }
 
 export interface CreateRecipeInput {
@@ -89,7 +99,36 @@ export interface UpdateStockInput {
   stock: number;
 }
 
+export interface UpdatePreparationResult {
+  recipe: EnrichedRecipe;
+  warnings: string[];
+}
+
 const MAX_SUB_RECIPE_DEPTH = 10;
+
+/**
+ * Best-effort detection of the video platform from a URL. We don't
+ * validate ownership or type — just match the host. If we don't
+ * recognize the host, we tag it as 'other' and the URL still works
+ * (the client opens it as a generic external link). Detected
+ * server-side on every prep save so the client never has to think
+ * about the platform — they paste the URL, we classify it.
+ */
+function detectVideoPlatform(
+  url: string,
+): 'instagram' | 'tiktok' | 'youtube' | 'other' {
+  const lower = url.toLowerCase();
+  if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
+    return 'instagram';
+  }
+  if (lower.includes('tiktok.com')) {
+    return 'tiktok';
+  }
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    return 'youtube';
+  }
+  return 'other';
+}
 
 function validateKgYield(sellUnit: string, yieldGrams?: number): void {
   if (sellUnit === 'kg' && (yieldGrams === undefined || yieldGrams <= 0)) {
@@ -574,6 +613,182 @@ export async function updateRecipeStock(
   ).exec();
   if (!updated) throw { status: 404, message: 'Receta no encontrada' };
   return enrichRecipe(updated as RecipeDocument);
+}
+
+export async function updatePreparation(
+  id: string,
+  dto: UpdatePreparationInput,
+): Promise<UpdatePreparationResult> {
+  const Recipe = getRecipeModel();
+  const recipe = (await Recipe.findById(id).exec()) as RecipeDocument | null;
+  if (!recipe) throw { status: 404, message: 'Receta no encontrada' };
+
+  // Collect the set of valid ingredient ref ObjectIds from the recipe's own
+  // ingredients. The set includes both `ingredientId` (regular ingredients)
+  // and `recipeId` (sub-recipes) so steps can reference either kind.
+  const validRefs = new Set<string>();
+  for (const ing of recipe.ingredients ?? []) {
+    const sub = ing as any;
+    if (sub.ingredientId) validRefs.add(sub.ingredientId.toString());
+    if (sub.recipeId) validRefs.add(sub.recipeId.toString());
+  }
+
+  if (dto.steps) {
+    for (const [stepIdx, step] of dto.steps.entries()) {
+      if (!step.ingredientItems) continue;
+      for (const item of step.ingredientItems) {
+        if (!validRefs.has(item.ingredientId)) {
+          throw {
+            status: 400,
+            message: `Step ${stepIdx + 1} references an ingredient that is not part of this recipe`,
+          };
+        }
+        if (item.quantity < 0) {
+          throw {
+            status: 400,
+            message: `Step ${stepIdx + 1} has a negative ingredient quantity`,
+          };
+        }
+      }
+    }
+  }
+
+  const nextPreparation: Record<string, unknown> = {
+    steps: (dto.steps ?? []).map((step) => ({
+      order: step.order,
+      text: step.text,
+      ingredientItems: (step.ingredientItems ?? []).map((item) => ({
+        ingredientId: new Types.ObjectId(item.ingredientId),
+        quantity: item.quantity,
+      })),
+    })),
+  };
+  if (dto.videoUrl !== undefined && dto.videoUrl !== '') {
+    // When the URL is set, also stamp the detected platform. When the
+    // URL is cleared (dto.videoUrl === '' or undefined) we leave both
+    // fields out of the replacement object so the $set clears them in
+    // MongoDB.
+    nextPreparation.videoUrl = dto.videoUrl;
+    nextPreparation.videoPlatform = detectVideoPlatform(dto.videoUrl);
+  }
+
+  // Aggregate per-ingredient totals from the saved steps. The recipe's
+  // own ingredient quantities flow from these totals so the recipe
+  // reflects how it is actually used in the prep (e.g. flour used in
+  // step 1 + step 5 sums to the recipe's total flour). Asymmetric
+  // handling on direction:
+  //   - sum > recipe.quantity  -> recipe grows to match (silent update)
+  //   - sum < recipe.quantity  -> recipe unchanged, a warning is added
+  //     so the user can decide whether to add the missing steps or
+  //     accept the shrink manually.
+  //   - sum == recipe.quantity -> no-op
+  //   - ingredient unreferenced -> no-op (untouched)
+  const totalsByRefId = new Map<string, number>();
+  for (const step of dto.steps ?? []) {
+    for (const item of step.ingredientItems ?? []) {
+      totalsByRefId.set(
+        item.ingredientId,
+        (totalsByRefId.get(item.ingredientId) ?? 0) + item.quantity,
+      );
+    }
+  }
+
+  // Build name lookup so warnings can say "Harina: ...", not "ObjectId abc123".
+  const referencedIds = [...totalsByRefId.keys()];
+  const [ingredients, subRecipes] = await Promise.all([
+    findIngredientsByIds(referencedIds),
+    Recipe.find({ _id: { $in: referencedIds } }, { name: 1 }).exec(),
+  ]);
+  const nameByRef = new Map<string, string>();
+  for (const ing of ingredients) {
+    nameByRef.set(ing._id.toString(), ing.name);
+  }
+  for (const sr of subRecipes) {
+    nameByRef.set(sr._id.toString(), sr.name);
+  }
+
+  const warnings: string[] = [];
+  const newIngredients = (recipe.ingredients ?? []).map((ing) => {
+    const sub = ing as any;
+    const refId =
+      sub.type === 'subRecipe'
+        ? sub.recipeId?.toString()
+        : sub.ingredientId?.toString();
+    if (!refId) return ing;
+
+    const total = totalsByRefId.get(refId);
+    if (total === undefined) return ing;
+
+    if (total === ing.quantity) return ing;
+
+    if (total > ing.quantity) {
+      // Over-allocation: grow the recipe to match (silent update).
+      // Hand-build a plain object with ONLY schema fields. Spreading the
+      // Mongoose subdoc (`{ ...sub, quantity: total }`) is unsafe because
+      // Mongoose's internal `__parentArray`/`_doc`/etc. are enumerable on
+      // hydrated subdocs — when Mongoose persists the array via $set it
+      // reads `_doc.quantity` (the original) and ignores the top-level
+      // override, so the recipe never grew.
+      const next: Record<string, unknown> = {
+        type: sub.type,
+        quantity: total,
+      };
+      if (sub.ingredientId) next.ingredientId = sub.ingredientId;
+      else if (sub.recipeId) next.recipeId = sub.recipeId;
+      return next;
+    }
+
+    // Under-allocation: warn, leave recipe unchanged.
+    const name = nameByRef.get(refId) ?? 'ingrediente';
+    const unit = sub.ingredientUnit === 'unidad' ? 'u.' : 'g';
+    const diff = ing.quantity - total;
+    warnings.push(
+      `${name}: ${total}${unit} en pasos, ${ing.quantity}${unit} en receta — ${diff}${unit} sin asignar`,
+    );
+    return ing;
+  });
+
+  // Only update if something actually changed (avoids unnecessary
+  // customSellingPrice reset when totals already match).
+  const quantitiesChanged = newIngredients.some((ing, idx) => {
+    const orig = recipe.ingredients?.[idx];
+    if (!orig) return true;
+    return (ing as any).quantity !== (orig as any).quantity;
+  });
+
+  if (!quantitiesChanged) {
+    // Only the preparation sub-document changed; persist it without
+    // touching customSellingPrice.
+    const updated = await Recipe.findByIdAndUpdate(
+      id,
+      { $set: { preparation: nextPreparation } },
+      { new: true },
+    ).exec();
+    if (!updated) throw { status: 404, message: 'Receta no encontrada' };
+    return {
+      recipe: await enrichRecipe(updated as RecipeDocument),
+      warnings,
+    };
+  }
+
+  const updated = await Recipe.findByIdAndUpdate(
+    id,
+    {
+      $set: {
+        preparation: nextPreparation,
+        ingredients: newIngredients,
+        // Underlying cost changed; reset any customSellingPrice so the
+        // auto-computed selling price wins.
+        customSellingPrice: null,
+      },
+    },
+    { new: true },
+  ).exec();
+  if (!updated) throw { status: 404, message: 'Receta no encontrada' };
+  return {
+    recipe: await enrichRecipe(updated as RecipeDocument),
+    warnings,
+  };
 }
 
 export async function deleteRecipe(id: string): Promise<void> {

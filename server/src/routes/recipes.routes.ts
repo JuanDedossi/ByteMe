@@ -8,6 +8,7 @@ import {
   updateRecipeStock,
   toggleRecipeActive,
   deleteRecipe,
+  updatePreparation,
 } from '../services/recipes.service';
 import { validate } from '../middleware/validate';
 import {
@@ -15,6 +16,7 @@ import {
   UpdateRecipeSchema,
   UpdateStockSchema,
   UpdateRecipePriceSchema,
+  UpdatePreparationSchema,
 } from '../validation/schemas';
 
 const router = Router();
@@ -93,6 +95,16 @@ router.patch('/:id/price', validate(UpdateRecipePriceSchema), async (req: Reques
   try {
     const id = req.params.id as string;
     const data = await updateRecipePrice(id, req.body);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/:id/preparation', validate(UpdatePreparationSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const data = await updatePreparation(id, req.body);
     res.json({ success: true, data });
   } catch (err) {
     next(err);
