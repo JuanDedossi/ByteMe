@@ -19,13 +19,6 @@ interface RecipeCardProps {
   onUpdatePrice: (id: string, price: number | null) => Promise<void>;
 }
 
-/**
- * Recipe summary card used in the Recipes list. Tapping the card body
- * toggles a breakdown panel showing ingredients, complements, and the
- * cost summary (REQ-REC-14 disambiguation when complements exist).
- * Tapping the explicit "Preparación" button navigates to the prep
- * detail page. Edit/Delete still go through the supplied callbacks.
- */
 export function RecipeCard({
   recipe,
   onEditRequest,
@@ -33,7 +26,6 @@ export function RecipeCard({
   onUpdatePrice,
 }: RecipeCardProps) {
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState(false);
   const [editingPrice, setEditingPrice] = useState(false);
   const [editPrice, setEditPrice] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,11 +33,13 @@ export function RecipeCard({
   const fmt = (v: number) =>
     `$${v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const handleToggleExpand = () => setExpanded((v) => !v);
+  const handleOpenDetail = () => {
+    navigate(`/recetas/${recipe._id}`);
+  };
 
   const handleOpenPreparation = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
-    navigate(`/recetas/${recipe._id}`);
+    navigate(`/recetas/${recipe._id}?tab=preparacion`);
   };
 
   const hasPreparation =
@@ -99,11 +93,11 @@ export function RecipeCard({
     <div
       role="button"
       tabIndex={0}
-      onClick={handleToggleExpand}
+      onClick={handleOpenDetail}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          handleToggleExpand();
+          handleOpenDetail();
         }
       }}
       style={{
@@ -328,248 +322,9 @@ export function RecipeCard({
           </div>
         </div>
       </div>
-
-      {expanded && <Breakdown recipe={recipe} fmt={fmt} />}
     </div>
   );
 }
-
-function Breakdown({ recipe, fmt }: { recipe: Recipe; fmt: (v: number) => string }) {
-  const hasComplements = !!recipe.complements && recipe.complements.length > 0;
-  return (
-    <div
-      style={{
-        borderTop: '1px solid rgba(218, 193, 184, 0.3)',
-        background: '#f8f4db',
-        padding: 'var(--space-md) var(--space-lg)',
-        fontFamily: 'var(--font-body)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-md)',
-      }}
-    >
-      {recipe.ingredients.length > 0 && (
-        <>
-          <SectionHeader>Ingredientes</SectionHeader>
-          <ul style={listStyle}>
-            {recipe.ingredients.map((ing) => (
-              <li key={ing.ingredientId} style={rowStyle}>
-                <span style={nameStyle}>
-                  {ing.isSubRecipe && <SubRecipeBadge />}
-                  {ing.ingredientName}
-                </span>
-                <QuantityPill quantity={ing.quantity} unit={unitLabel(ing.ingredientUnit)} />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {recipe.complements && recipe.complements.length > 0 && (
-        <>
-          <SectionHeader>Complementos</SectionHeader>
-          <ul style={listStyle}>
-            {recipe.complements.map((c) => (
-              <li key={c.complementId} style={rowStyle}>
-                <span style={nameStyle}>
-                  {c.complementName}
-                  {c.complementUnit ? ` (${c.complementUnit})` : ''}
-                </span>
-                <QuantityPill
-                  quantity={c.quantity}
-                  unit={complementUnitLabel(c.complementUnit)}
-                />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <SectionHeader>Costo</SectionHeader>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-        {hasComplements ? (
-          <>
-            <CostRow label="Costo base (bandejas)">{fmt(recipe.costBase)}</CostRow>
-            <CostRow label="Costo total (venta indiv.)">{fmt(recipe.costTotal)}</CostRow>
-          </>
-        ) : (
-          <CostRow label="Costo producción">{fmt(recipe.cost)}</CostRow>
-        )}
-        {recipe.sellUnit === 'unidad' && recipe.yieldUnits > 1 && (
-          <CostRow label="Rendimiento">{recipe.yieldUnits} unidades</CostRow>
-        )}
-        <CostRow label={`Markup (${recipe.markupPercentage}%)`}>
-          {fmt(
-            (recipe.sellUnit === 'kg'
-              ? recipe.sellingPrice * (recipe.yieldGrams / 1000)
-              : recipe.sellingPrice * recipe.yieldUnits) - recipe.cost,
-          )}
-        </CostRow>
-        {recipe.sellUnit === 'kg' ? (
-          <>
-            <CostRow label="Precio por 100g">{fmt(recipe.pricePer100g)}</CostRow>
-            <span
-              style={{
-                fontSize: '0.7rem',
-                color: 'var(--color-text-secondary)',
-                textAlign: 'right',
-              }}
-            >
-              ({fmt(recipe.sellingPrice)}/kg)
-            </span>
-          </>
-        ) : (
-          <CostRow
-            label={
-              recipe.yieldUnits > 1
-                ? `Precio por unidad (rinde ${recipe.yieldUnits})`
-                : 'Precio de venta'
-            }
-          >
-            {fmt(recipe.sellingPrice)}
-          </CostRow>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <p
-      style={{
-        fontFamily: 'var(--font-body)',
-        fontSize: '0.7rem',
-        fontWeight: 600,
-        color: 'var(--color-text-secondary)',
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        margin: 0,
-      }}
-    >
-      {children}
-    </p>
-  );
-}
-
-function SubRecipeBadge() {
-  return (
-    <span
-      style={{
-        fontFamily: 'var(--font-body)',
-        fontSize: '0.6rem',
-        fontWeight: 700,
-        color: 'var(--color-primary)',
-        background: 'rgba(188, 108, 37, 0.14)',
-        padding: '2px 8px',
-        borderRadius: 'var(--radius-full)',
-        textTransform: 'uppercase',
-        letterSpacing: '0.04em',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      Sub-receta
-    </span>
-  );
-}
-
-function QuantityPill({
-  quantity,
-  unit,
-}: {
-  quantity: number;
-  unit: string;
-}) {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'baseline',
-        gap: '2px',
-        background: 'var(--color-primary)',
-        color: 'var(--color-on-primary)',
-        padding: '4px 12px',
-        borderRadius: 'var(--radius-full)',
-        fontFamily: 'var(--font-body)',
-        fontSize: '0.85rem',
-        fontWeight: 700,
-        whiteSpace: 'nowrap',
-        flexShrink: 0,
-        boxShadow: '0 1px 3px rgba(188, 108, 37, 0.2)',
-      }}
-    >
-      <span style={{ fontSize: '0.95rem' }}>{quantity}</span>
-      <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>{unit}</span>
-    </span>
-  );
-}
-
-function CostRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontFamily: 'var(--font-body)',
-        fontSize: '0.8rem',
-        color: 'var(--color-text-secondary)',
-      }}
-    >
-      <span>{label}</span>
-      <span style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{children}</span>
-    </div>
-  );
-}
-
-function unitLabel(unit?: string): string {
-  if (unit === 'unidad') return 'u.';
-  if (unit === 'kg') return 'g';
-  return 'g';
-}
-
-function complementUnitLabel(unit?: string): string {
-  if (unit === 'metro') return 'm';
-  if (unit === 'unidad') return 'u.';
-  return '';
-}
-
-const listStyle: React.CSSProperties = {
-  listStyle: 'none',
-  padding: 0,
-  margin: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 'var(--space-xs)',
-};
-
-const rowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 'var(--space-sm)',
-  padding: 'var(--space-sm) var(--space-md)',
-  background: 'var(--color-surface)',
-  borderRadius: 'var(--radius-md)',
-  fontFamily: 'var(--font-body)',
-  fontSize: '0.85rem',
-  color: 'var(--color-text-primary)',
-  border: '1px solid rgba(218, 193, 184, 0.25)',
-};
-
-const nameStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 'var(--space-sm)',
-  flex: 1,
-  minWidth: 0,
-};
 
 const iconBtnStyle: React.CSSProperties = {
   background: 'none',
