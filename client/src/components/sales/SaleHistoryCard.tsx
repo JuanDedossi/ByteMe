@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { MdDeleteOutline, MdExpandMore, MdExpandLess } from 'react-icons/md';
 import type { Sale } from '../../types/sale.types';
+import { formatQuantityLabel } from '../../utils/sale-quantity';
 
 interface SaleHistoryCardProps {
   sale: Sale;
@@ -29,7 +30,11 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistoryCardProps) {
+export function SaleHistoryCard({
+  sale,
+  onLineDelete,
+  onLineUpdate,
+}: SaleHistoryCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   // Track the raw input value per item so an empty string stays empty
@@ -38,7 +43,11 @@ export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistor
   const debounceRefs = useRef<Record<string, number>>({});
 
   useEffect(() => {
-    setQuantities(Object.fromEntries(sale.items.map((item) => [item._id, String(item.quantity)])));
+    setQuantities(
+      Object.fromEntries(
+        sale.items.map((item) => [item._id, String(item.quantity)]),
+      ),
+    );
   }, [sale]);
 
   // Clear any pending debounced saves when the component unmounts so a stale
@@ -70,7 +79,8 @@ export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistor
   }, []);
 
   const handleQtyChange =
-    (itemId: string, currentQty: number) => (event: ChangeEvent<HTMLInputElement>) => {
+    (itemId: string, currentQty: number) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
       const raw = event.target.value;
       setQuantities((previous) => ({ ...previous, [itemId]: raw }));
 
@@ -87,7 +97,9 @@ export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistor
       if (!Number.isFinite(parsed)) return;
       // Decrease-only: clamp to [0, currentQty] so the UI can never propose an
       // increase. The server enforces the same rule server-side as defense in depth.
-      const clamped = Math.max(0, Math.min(Math.floor(parsed), currentQty));
+      // Fractional values (e.g. 0.5) are accepted so users can reduce a sale
+      // line to a half-unit quantity post-venta.
+      const clamped = Math.max(0, Math.min(parsed, currentQty));
 
       const existing = debounceRefs.current[itemId];
       if (existing) window.clearTimeout(existing);
@@ -200,14 +212,29 @@ export function SaleHistoryCard({ sale, onLineDelete, onLineUpdate }: SaleHistor
 interface MobileItemsProps {
   items: Sale['items'];
   quantities: Record<string, string>;
-  onQtyChange: (itemId: string, currentQty: number) => (event: ChangeEvent<HTMLInputElement>) => void;
+  onQtyChange: (
+    itemId: string,
+    currentQty: number,
+  ) => (event: ChangeEvent<HTMLInputElement>) => void;
   onDelete: (itemId: string) => Promise<void>;
   total: number;
 }
 
-function MobileItems({ items, quantities, onQtyChange, onDelete, total }: MobileItemsProps) {
+function MobileItems({
+  items,
+  quantities,
+  onQtyChange,
+  onDelete,
+  total,
+}: MobileItemsProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-sm)',
+      }}
+    >
       {items.map((item) => (
         <div
           key={item._id}
@@ -233,7 +260,7 @@ function MobileItems({ items, quantities, onQtyChange, onDelete, total }: Mobile
                 color: 'var(--color-text-primary)',
               }}
             >
-              {item.recipeName}
+              {formatQuantityLabel(item.quantity)} {item.recipeName}
               {item.itemType === 'tray' && (
                 <span
                   style={{
@@ -266,12 +293,15 @@ function MobileItems({ items, quantities, onQtyChange, onDelete, total }: Mobile
               type="number"
               min={0}
               max={item.quantity}
+              step="0.5"
               value={quantities[item._id] ?? String(item.quantity)}
               onChange={onQtyChange(item._id, item.quantity)}
               style={{ width: '3.5rem', textAlign: 'right' }}
             />
             <span>× {fmt(item.unitPrice)} =</span>
-            <strong style={{ color: 'var(--color-text-primary)' }}>{fmt(item.subtotal)}</strong>
+            <strong style={{ color: 'var(--color-text-primary)' }}>
+              {fmt(item.subtotal)}
+            </strong>
             <button
               type="button"
               title="Eliminar línea"
@@ -331,32 +361,43 @@ function MobileItems({ items, quantities, onQtyChange, onDelete, total }: Mobile
 interface DesktopTableProps {
   items: Sale['items'];
   quantities: Record<string, string>;
-  onQtyChange: (itemId: string, currentQty: number) => (event: ChangeEvent<HTMLInputElement>) => void;
+  onQtyChange: (
+    itemId: string,
+    currentQty: number,
+  ) => (event: ChangeEvent<HTMLInputElement>) => void;
   onDelete: (itemId: string) => Promise<void>;
   total: number;
 }
 
-function DesktopTable({ items, quantities, onQtyChange, onDelete, total }: DesktopTableProps) {
+function DesktopTable({
+  items,
+  quantities,
+  onQtyChange,
+  onDelete,
+  total,
+}: DesktopTableProps) {
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
       <thead>
         <tr>
-          {(['Producto', 'Cant.', 'Precio unit.', 'Subtotal', ''] as const).map((h, i) => (
-            <th
-              key={h || 'actions'}
-              style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '0.7rem',
-                fontWeight: 600,
-                color: 'var(--color-text-secondary)',
-                textAlign: i === 0 ? 'left' : 'right',
-                paddingBottom: 'var(--space-xs)',
-                width: i === 4 ? '2.5rem' : undefined,
-              }}
-            >
-              {h}
-            </th>
-          ))}
+          {(['Producto', 'Cant.', 'Precio unit.', 'Subtotal', ''] as const).map(
+            (h, i) => (
+              <th
+                key={h || 'actions'}
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  color: 'var(--color-text-secondary)',
+                  textAlign: i === 0 ? 'left' : 'right',
+                  paddingBottom: 'var(--space-xs)',
+                  width: i === 4 ? '2.5rem' : undefined,
+                }}
+              >
+                {h}
+              </th>
+            ),
+          )}
         </tr>
       </thead>
       <tbody>
@@ -371,7 +412,7 @@ function DesktopTable({ items, quantities, onQtyChange, onDelete, total }: Deskt
                 padding: '3px 0',
               }}
             >
-              {item.recipeName}
+              {formatQuantityLabel(item.quantity)} {item.recipeName}
               {item.itemType === 'tray' && (
                 <span
                   style={{
@@ -402,6 +443,7 @@ function DesktopTable({ items, quantities, onQtyChange, onDelete, total }: Deskt
                 type="number"
                 min={0}
                 max={item.quantity}
+                step="0.5"
                 value={quantities[item._id] ?? String(item.quantity)}
                 onChange={onQtyChange(item._id, item.quantity)}
                 style={{ width: '3.5rem', textAlign: 'right' }}
