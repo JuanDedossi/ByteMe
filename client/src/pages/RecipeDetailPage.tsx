@@ -1,62 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { MdArrowBack } from 'react-icons/md';
 import { recipesService } from '../services/recipes.service';
 import type { Recipe } from '../types/recipe.types';
-import { IngredientesTab } from '../components/recipes/IngredientesTab';
 import { PreparationTab } from '../components/recipes/PreparationTab';
 
-type TabKey = 'ingredientes' | 'preparacion';
-
-const TAB_ORDER: TabKey[] = ['ingredientes', 'preparacion'];
-const TAB_LABELS: Record<TabKey, string> = {
-  ingredientes: 'Ingredientes',
-  preparacion: 'Preparación',
-};
-
-const VALID_TABS: ReadonlySet<TabKey> = new Set(TAB_ORDER);
-
-function parseTabParam(raw: string | null): TabKey {
-  // Default to 'ingredientes' so opening a recipe from the list (card
-  // click) lands on the overview tab. The Preparacion button on
-  // RecipeCard passes ?tab=preparacion explicitly to land on the prep
-  // tab, which is the deliberate entry point.
-  return raw && VALID_TABS.has(raw as TabKey) ? (raw as TabKey) : 'ingredientes';
-}
-
 /**
- * Recipe detail page introduced by the recipe-preparation feature.
- * Replaces the legacy expand-on-card UX with a dedicated screen hosting
- * two tabs (Ingredientes / Preparación). Mobile-first with safe-area
- * padding for the BottomNav.
+ * Recipe detail page — single-purpose view: the preparation.
  *
- * The Costos tab that existed in PR 3 was removed: the price is already
- * visible on RecipeCard and the cost breakdown overlaps conceptually
- * with the Ingredientes tab. If we ever need it back, drop the
- * CostosTab import and add 'costos' to TabKey + TAB_ORDER.
+ * Replaces the earlier three-tab layout (Ingredientes / Preparación /
+ * Costos). The reference data (ingredients, complements, costs)
+ * lives in the RecipeCard expand on the list page, so the detail page
+ * is now a focused action surface for cooking: header + back button,
+ * then the prep steps + video link.
  *
- * The active tab is driven by the `?tab=` query param so deep links
- * (e.g. `/recetas/:id?tab=preparacion`) land directly on the right tab.
+ * `?tab=preparacion` deep links still work — the param is silently
+ * ignored when there is only one tab, so old URLs from share targets
+ * don't break.
  */
 export function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const activeTab = parseTabParam(searchParams.get('tab'));
-  const setActiveTab = useCallback(
-    (key: TabKey) => {
-      setSearchParams({ tab: key }, { replace: true });
-    },
-    [setSearchParams],
-  );
 
   useEffect(() => {
     if (!id) return;
@@ -129,49 +96,6 @@ export function RecipeDetailPage() {
         </h1>
       </div>
 
-      {/* Segmented tab control */}
-      <div
-        role="tablist"
-        aria-label="Secciones de la receta"
-        style={{
-          display: 'flex',
-          gap: 'var(--space-xs)',
-          padding: 'var(--space-md) var(--space-lg)',
-          background: 'var(--color-surface)',
-          borderBottom: '1px solid rgba(218, 193, 184, 0.3)',
-        }}
-      >
-        {TAB_ORDER.map((key) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={activeTab === key}
-            onClick={() => setActiveTab(key)}
-            style={{
-              flex: 1,
-              fontFamily: 'var(--font-body)',
-              fontSize: '0.8rem',
-              fontWeight: activeTab === key ? 700 : 500,
-              background:
-                activeTab === key
-                  ? 'var(--color-primary)'
-                  : 'transparent',
-              color:
-                activeTab === key
-                  ? 'var(--color-on-primary)'
-                  : 'var(--color-text-secondary)',
-              border: 'none',
-              borderRadius: 'var(--radius-full)',
-              padding: 'var(--space-xs) var(--space-sm)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            {TAB_LABELS[key]}
-          </button>
-        ))}
-      </div>
-
       <div style={{ padding: 'var(--space-lg)' }}>
         {error && (
           <p
@@ -198,12 +122,7 @@ export function RecipeDetailPage() {
           </p>
         )}
         {recipe && !error && (
-          <div role="tabpanel">
-            {activeTab === 'ingredientes' && <IngredientesTab recipe={recipe} />}
-            {activeTab === 'preparacion' && (
-              <PreparationTab recipe={recipe} onUpdated={handleUpdated} />
-            )}
-          </div>
+          <PreparationTab recipe={recipe} onUpdated={handleUpdated} />
         )}
       </div>
     </div>
