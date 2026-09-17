@@ -217,9 +217,6 @@ export function RecipeFormModal({
       isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
   );
 
-  // REQ-REC-DUP: ingredientCost derives from consolidatedRows so duplicate
-  // rows don't double-count in the live preview (visually identical to summing
-  // raw rows because of associativity, but explicit makes the contract clear).
   const ingredientCost = consolidatedRows.reduce((sum, row) => {
     const ing = getIngredient(row.ingredientId);
     if (!ing) return sum;
@@ -349,9 +346,6 @@ export function RecipeFormModal({
   const handleSubmit = async () => {
     setError('');
     if (!isValid) return;
-    // REQ-REC-DUP: anti-duplicate check is now scoped to the EDIT branch only.
-    // On CREATE, duplicate ingredient rows are silently merged via
-    // consolidateIngredientRows (see consolidatedRows above).
     if (initialData) {
       const ingredientIds = validRows.map((r) => r.ingredientId);
       const hasDuplicates =
