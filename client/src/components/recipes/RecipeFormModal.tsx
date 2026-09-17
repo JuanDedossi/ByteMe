@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { MdAdd, MdClose } from 'react-icons/md';
 import { Modal } from '../common/Modal';
 import { SearchableSelect } from '../common/SearchableSelect';
@@ -38,6 +38,32 @@ interface RecipeFormModalProps {
 
 let rowCounter = 0;
 
+/**
+ * Consolidate duplicate ingredient rows by `ingredientId`, summing quantities.
+ * Pure: returns a new array; never mutates the input.
+ * Drops rows with non-positive quantity. Preserves first-seen insertion order.
+ * Used by RecipeFormModal to silently merge duplicate ingredient rows on
+ * the create branch — see openspec/changes/recipe-duplicate-ingredients/.
+ */
+function consolidateIngredientRows(
+  rows: ReadonlyArray<{ ingredientId: string; quantity: number }>,
+): Array<{ ingredientId: string; quantity: number }> {
+  const result: Array<{ ingredientId: string; quantity: number }> = [];
+  const seen = new Map<string, { ingredientId: string; quantity: number }>();
+  for (const row of rows) {
+    if (!Number.isFinite(row.quantity) || row.quantity <= 0) continue;
+    const existing = seen.get(row.ingredientId);
+    if (existing) {
+      existing.quantity += row.quantity;
+    } else {
+      const copy = { ingredientId: row.ingredientId, quantity: row.quantity };
+      seen.set(row.ingredientId, copy);
+      result.push(copy);
+    }
+  }
+  return result;
+}
+
 export function RecipeFormModal({
   isOpen,
   onClose,
@@ -52,6 +78,21 @@ export function RecipeFormModal({
   const [rows, setRows] = useState<IngredientRow[]>([
     { id: ++rowCounter, ingredientId: '', quantity: '' },
   ]);
+  // Consolidated view of `rows`: one entry per unique ingredientId, with
+  // quantities summed. Used by the live cost preview and by the create-branch
+  // submit so that duplicate ingredient rows are silently merged.
+  const consolidatedRows = useMemo(
+    () =>
+      consolidateIngredientRows(
+        rows
+          .filter((r) => r.ingredientId)
+          .map((r) => ({
+            ingredientId: r.ingredientId,
+            quantity: parseFloat(r.quantity) || 0,
+          })),
+      ),
+    [rows],
+  );
   const [subRecipeRows, setSubRecipeRows] = useState<SubRecipeRow[]>([]);
   const [complementRows, setComplementRows] = useState<ComplementRow[]>([]);
   const [profitRuleId, setProfitRuleId] = useState('');
@@ -176,13 +217,17 @@ export function RecipeFormModal({
       isComplementQuantityValid(r.quantity, getComplement(r.complementId)),
   );
 
-  const ingredientCost = validRows.reduce((sum, row) => {
+  // REQ-REC-DUP: ingredientCost derives from consolidatedRows so duplicate
+  // rows don't double-count in the live preview (visually identical to summing
+  // raw rows because of associativity, but explicit makes the contract clear).
+  const ingredientCost = consolidatedRows.reduce((sum, row) => {
     const ing = getIngredient(row.ingredientId);
     if (!ing) return sum;
-    const q = parseFloat(row.quantity);
     return (
       sum +
-      (ing.unit === 'unidad' ? ing.costPerUnit * q : (ing.costPerKg * q) / 1000)
+      (ing.unit === 'unidad'
+        ? ing.costPerUnit * row.quantity
+        : (ing.costPerKg * row.quantity) / 1000)
     );
   }, 0);
 
@@ -304,20 +349,28 @@ export function RecipeFormModal({
   const handleSubmit = async () => {
     setError('');
     if (!isValid) return;
-    const ingredientIds = validRows.map((r) => r.ingredientId);
-    const hasDuplicates = new Set(ingredientIds).size !== ingredientIds.length;
-    if (hasDuplicates) {
-      setError('Hay ingredientes repetidos.');
-      return;
+    // REQ-REC-DUP: anti-duplicate check is now scoped to the EDIT branch only.
+    // On CREATE, duplicate ingredient rows are silently merged via
+    // consolidateIngredientRows (see consolidatedRows above).
+    if (initialData) {
+      const ingredientIds = validRows.map((r) => r.ingredientId);
+      const hasDuplicates =
+        new Set(ingredientIds).size !== ingredientIds.length;
+      if (hasDuplicates) {
+        setError('Hay ingredientes repetidos.');
+        return;
+      }
     }
     setLoading(true);
     try {
       await onSubmit({
         name: name.trim(),
-        ingredients: validRows.map((r) => ({
-          ingredientId: r.ingredientId,
-          quantity: parseFloat(r.quantity),
-        })),
+        ingredients: initialData
+          ? validRows.map((r) => ({
+              ingredientId: r.ingredientId,
+              quantity: parseFloat(r.quantity),
+            }))
+          : consolidatedRows,
         subRecipes:
           validSubRecipeRows.length > 0
             ? validSubRecipeRows.map((r) => ({
